@@ -28,8 +28,27 @@
                 </div>
             </div>
 
+        {{else if fifthEdition.ambitions}}
+        {{!-- 5e (p.41-42): one personal Ambition and one Party Ambition --}}
+        <fieldset>
+            <legend>{{localize "FIFTHED.Ambition"}}</legend>
+            <div class="form-group">
+                <div class="form-fields">
+                    <input name="system.details.personal-ambitions.long-term" type="text" value="{{system.details.personal-ambitions.long-term}}" />
+                </div>
+            </div>
+        </fieldset>
+
+        <fieldset>
+            <legend>{{localize "FIFTHED.PartyAmbition"}}</legend>
+            <div class="form-group">
+                <div class="form-fields">
+                    <input name="system.details.party-ambitions.long-term" type="text" value="{{system.details.party-ambitions.long-term}}" />
+                </div>
+            </div>
+        </fieldset>
         {{else}}
-                <fieldset>
+        <fieldset>
             <legend>{{localize "Personal Ambitions"}}</legend>
             <div class="form-group">
                 <label>{{localize "Short Term"}}</label>

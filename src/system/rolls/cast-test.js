@@ -1,4 +1,5 @@
 import TestWFRP from "./test-wfrp4e.js"
+import FifthEdition from "../fifth-edition.js";
 
 export default class CastTest extends TestWFRP {
 
@@ -104,8 +105,11 @@ export default class CastTest extends TestWFRP {
 
 
 
-    // Witchcraft automatically miscast
-    if (this.item.lore.value == "witchcraft") {
+    // Witchcraft automatically miscast.
+    // The effective Lore, not "does lore.value contain witchcraft": a derived Arcane spell can carry two Lores, and
+    // casting it with the other one chosen is not casting with Witchcraft. The old bare-string comparison only ever
+    // worked because a one-element array coerces to its element.
+    if (this.item.system.effectiveLore == "witchcraft") {
       miscastCounter++;
       this.result.other.push(game.i18n.localize("CHAT.WitchcraftMiscast"))
       this.result.tooltips.miscast.push(game.i18n.localize("CHAT.AutoWitchcraftMiscast"))
@@ -119,7 +123,7 @@ export default class CastTest extends TestWFRP {
     {
       this.result.castOutcome = "failure"
       this.result.description = game.i18n.localize("ROLL.CastingFailed")
-      if (this.preData.itemData.system.cn.SL) {
+      if (this.preData.itemData.system.cn.SL && !FifthEdition.enabled("Magic")) { // 5e (p.236): failing a Casting Test after Channelling just loses the pool
         miscastCounter++
         this.result.tooltips.miscast.push(game.i18n.localize("CHAT.ChannellingMiscast"))
       }
@@ -159,7 +163,7 @@ export default class CastTest extends TestWFRP {
       }
       //@/HOUSE
       // Critical Casting - succeeds only if the user chooses Total Power option (which is assumed)
-      if (this.result.roll % 11 == 0) {
+      if (this.result.roll % 11 == 0 && !this.pettyNoCritical) {
         this.result.color_green = true;
         this.result.castOutcome = "success"
         this.result.description = game.i18n.localize("ROLL.CastingSuccess")
@@ -182,7 +186,7 @@ export default class CastTest extends TestWFRP {
       }
       //@/HOUSE
 
-      if (this.result.roll % 11 == 0) {
+      if (this.result.roll % 11 == 0 && !this.pettyNoCritical) {
         this.result.critical = game.i18n.localize("ROLL.CritCast")
         this.result.color_green = true;
         this.result.tooltips.miscast.push(game.i18n.localize("CHAT.CritCastMiscast"))
@@ -213,6 +217,7 @@ export default class CastTest extends TestWFRP {
     //@/HOUSE
     
     miscastCounter += this._checkInfluences() || 0
+    miscastCounter = this._applyInfluences5e(miscastCounter);
     this._calculateOverCast(slOver);
     this._handleMiscasts(miscastCounter)
     await this.calculateDamage()
@@ -225,9 +230,15 @@ export default class CastTest extends TestWFRP {
     return this.result;
   }
 
+  /** 5e (p.235): Petty Spells do not cause Critical Casting or a Minor Miscast on a Critical */
+  get pettyNoCritical()
+  {
+    return FifthEdition.enabled("Magic") && this.item.lore.value == "petty";
+  }
+
   _checkInfluences()
   {
-    if (!this.preData.malignantInfluence) 
+    if (!this.preData.malignantInfluence || FifthEdition.enabled("Magic")) // 5e influences are handled by _applyInfluences5e
     {
       return 0
     }
@@ -243,7 +254,7 @@ export default class CastTest extends TestWFRP {
   }
 
   _calculateOverCast(slOver) {
-    this.result.overcasts = Math.max(0, Math.floor(slOver / 2));
+    this.result.overcasts = FifthEdition.limitOvercasts(this, Math.max(0, Math.floor(slOver / 2)));
     this.result.overcast.total = this.result.overcasts;
     this.result.overcast.available = this.result.overcasts;
   }
@@ -255,9 +266,13 @@ export default class CastTest extends TestWFRP {
     try {
       if (this.item.Damage && this.result.castOutcome == "success")
       {
-        this.result.damage = Number(this.result.SL) + Number(this.item.Damage)
+        // 5e (p.235): a magic missile does the spell's Damage plus Willpower Bonus, which item.Damage already
+        // carries. SL is not added; surplus SL has to be spent on the Overcast table's Damage column instead.
+        let addSL = !(FifthEdition.enabled("Magic") && this.item.magicMissile?.value);
+        this.result.damage = (addSL ? Number(this.result.SL) : 0) + Number(this.item.Damage)
         damageBreakdown.base = `${this.item.Damage} (${game.i18n.localize("Spell")})`
-        damageBreakdown.other.push({label : game.i18n.localize("SL"), value : this.result.SL });
+        if (addSL)
+          damageBreakdown.other.push({label : game.i18n.localize("SL"), value : this.result.SL });
       }
 
       if (this.item.damage.dice && !this.result.additionalDamage) {

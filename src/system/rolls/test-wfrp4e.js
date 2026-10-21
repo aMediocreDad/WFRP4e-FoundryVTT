@@ -2,6 +2,8 @@
 import WFRP_Utility from "../utility-wfrp4e.js";
 import WFRP_Audio from "../audio-wfrp4e.js";
 import CrewTest from "../crew-test.js"
+import FifthEdition from "../fifth-edition.js";
+import { formatSLExplanation, recordSLAdjustment } from "./breakdown.js";
 
 export default class TestWFRP extends WarhammerTestBase {
   constructor(data, actor) {
@@ -25,6 +27,12 @@ export default class TestWFRP extends WarhammerTestBase {
         options: data.context || {},
         other: data.other || [],
         reversal: data.reversal || {allowed : false, if: "better"}, // if better/worse/success/failure
+        advSources: data.advSources || 0, // 5e Advantage sources (digit reversal), see FifthEdition.resolveAdvantage
+        disSources: data.disSources || 0,
+        fortuneAdvantage: !!data.fortuneAdvantage,
+        useFate: !!data.useFate, // 5e (p.133): I Will Not Fail!
+        fateRoll: data.fateRoll,
+        feLegacyReversal: data.feLegacyReversal,
         postOpposedModifiers: data.postOpposedModifiers || { modifiers: 0, SL: 0 },
         additionalDamage: data.additionalDamage || 0,
         selectedHitLocation : typeof data.hitLocation == "string" ? data.hitLocation : "", // hitLocation could be boolean
@@ -103,6 +111,12 @@ export default class TestWFRP extends WarhammerTestBase {
     if (!this.context.speaker)
       throw new Error(game.i18n.localize("ERROR.Speaker"))
 
+    // 5e (p.133): both spends are charged before the dice, because both change the roll - Fortune adds an Advantage
+    // source and Fate replaces the roll outright. Charged afterwards, a refusal would arrive too late to withhold
+    // the benefit it was refusing.
+    await this.spendFortuneAdvantage();
+    await this.spendFate();
+
     await this.rollDices();
     await this.computeResult();
     this.computeTables();
@@ -127,11 +141,59 @@ export default class TestWFRP extends WarhammerTestBase {
     delete this.result.roll;
     delete this.result.hitloc
     delete this.preData.hitloc
+    delete this.preData.critHitloc;
+    delete this.preData.channelSLLost;
     delete this.preData.roll;
     delete this.preData.SL;
     this.context.messageId = ""
 
     await this.roll()
+  }
+
+  /**
+   * 5e (p.133): a Fortune Point may be spent before rolling to gain Advantage. Charged once, on the first roll only.
+   *
+   * The point has to be paid for the Advantage to be kept. The dialog only offers the box while the actor has a point
+   * (RollDialog._prepareContext), but that is a snapshot: a second dialog opened on the same point, a dialog left open
+   * while the point was spent elsewhere, another client on the same actor, or a crafted payload all arrive here with
+   * nothing left to pay. The live value is read immediately before the write - the closest to atomic the Document API
+   * allows - and the Advantage source RollDialog._computeFortuneAdvantage added is taken back when payment fails.
+   */
+  async spendFortuneAdvantage() {
+    if (!FifthEdition.enabled("Fortune") || !this.preData.fortuneAdvantage || this.context.fortuneAdvantageSpent || this.context.unopposed) {
+      return;
+    }
+    let fortune = this.actor.system.status.fortune?.value || 0;
+    if (fortune < 1) {
+      this.preData.fortuneAdvantage = false;
+      this.preData.advSources = Math.max(0, (Number(this.preData.advSources) || 0) - 1);
+      ui.notifications.warn("FIFTHED.NoFortuneAdvantage", { localize: true });
+      return;
+    }
+    await this.actor.update({ "system.status.fortune.value": fortune - 1 });
+    this.context.fortuneAdvantageSpent = true;
+    this.result.other.push(game.i18n.format("FIFTHED.FortuneAdvantageUsed", { remaining: fortune - 1 }));
+  }
+
+  /**
+   * 5e (p.133): I Will Not Fail! spends a Fate Point to choose the result. Charged once, on the first roll only.
+   *
+   * Same precondition as spendFortuneAdvantage, and the same reasons for it. Refusal clears preData.useFate, which is
+   * what rollDices, computeResult and OpposedTest all read - so the Test rolls its own d100 and stands or falls on it.
+   */
+  async spendFate() {
+    if (!FifthEdition.enabled("Fate") || !this.preData.useFate || this.context.fateSpent || this.context.unopposed) {
+      return;
+    }
+    let fate = this.actor.system.status.fate?.value || 0;
+    if (fate < 1) {
+      this.preData.useFate = false;
+      ui.notifications.warn("FIFTHED.NoFate", { localize: true });
+      return;
+    }
+    await this.actor.update({ "system.status.fate.value": fate - 1 });
+    this.context.fateSpent = true;
+    this.result.other.push(game.i18n.format("FIFTHED.FateUsed", { remaining: fate - 1 }));
   }
 
   addSL(SL) {
@@ -198,6 +260,11 @@ export default class TestWFRP extends WarhammerTestBase {
 
     let description = "";
 
+    let feAdvantage = FifthEdition.resolveAdvantage(this.preData);
+    if (feAdvantage) {
+      slBonus += feAdvantage.extraSL;
+    }
+
     if (this.preData.reversal.allowed) {
       let reverseRoll = this.result.roll.toString();
       if (reverseRoll.length == 1)
@@ -254,12 +321,32 @@ export default class TestWFRP extends WarhammerTestBase {
       }
 
 
+    if (feAdvantage && feAdvantage.net != 0) {
+      let reversed = this.result.reversed ? game.i18n.format("FIFTHED.Reversed", { from: this.result.originalRoll, to: this.result.roll }) : game.i18n.localize("FIFTHED.NotReversed");
+      let extra = feAdvantage.extraSL ? game.i18n.format("FIFTHED.ExtraSL", { sl: (feAdvantage.extraSL > 0 ? "+" : "") + feAdvantage.extraSL }) : "";
+      let note = game.i18n.format(feAdvantage.net > 0 ? "FIFTHED.AdvantageApplied" : "FIFTHED.DisadvantageApplied", { sources: Math.abs(feAdvantage.net), reversed, extra });
+      if (!this.result.other.includes(note)) this.result.other.push(note);
+    }
+
     let baseSL = (Math.floor(target / 10) - Math.floor(this.result.roll / 10));
     if (game.settings.get("wfrp4e", "SLMethod") == "dos")
     {
       baseSL = Math.floor(Math.abs(target - this.result.roll) / 10) * ((target - this.result.roll) < 0 ? -1 : 1);
     }
     let SL
+    // Replaced on every evaluation, including edits and opposed recomputations.
+    this.result.slCalculation = {
+      base: baseSL,
+      bonus: this.preData.slBonus + this.preData.postOpposedModifiers.SL,
+      advantage: feAdvantage,
+      advantageSources: Number(this.preData.advSources) || 0,
+      disadvantageSources: Number(this.preData.disSources) || 0,
+      override: Number.isNumeric(this.preData.SL) ? Number(this.preData.SL) : null,
+      successBonus: 0,
+      originalRoll: this.result.originalRoll ?? this.result.roll,
+      roll: this.result.roll,
+      adjustments: []
+    };
     if (this.preData.SL == 0)
       SL = this.preData.SL
     else
@@ -275,7 +362,10 @@ export default class TestWFRP extends WarhammerTestBase {
       description = game.i18n.localize("ROLL.Failure")
       outcome = "failure"
       if (this.result.roll >= 96 && SL > -1)
+      {
+        recordSLAdjustment(this.result.slCalculation, "BREAKDOWN.AutomaticFailure", SL, -1);
         SL = -1;
+      }
 
       switch (Math.abs(Number(SL))) {
         case 6:
@@ -336,8 +426,15 @@ export default class TestWFRP extends WarhammerTestBase {
         }
       }
       SL += successBonus;
+      this.result.slCalculation.successBonus = successBonus;
+      if (game.settings.get("wfrp4e", "SLMethod") == "fast") {
+        this.result.slCalculation.base = Math.floor(this.result.roll / 10);
+      }
       if (this.result.roll <= automaticSuccess && SL < 1 && !this.context.unopposed)
+      {
+        recordSLAdjustment(this.result.slCalculation, "BREAKDOWN.AutomaticSuccess", SL, 1);
         SL = 1;
+      }
 
 
 
@@ -346,6 +443,7 @@ export default class TestWFRP extends WarhammerTestBase {
         if (this.options.sizeModifier) {
           let unmodifiedTarget = target - this.options.sizeModifier
           if (this.result.roll > unmodifiedTarget) {
+            recordSLAdjustment(this.result.slCalculation, "ROLL.SizeCausedSuccess", SL, 0);
             SL = 0;
             this.result.other.push(game.i18n.localize("ROLL.SizeCausedSuccess"))
           }
@@ -382,6 +480,7 @@ export default class TestWFRP extends WarhammerTestBase {
       if (game.settings.get("wfrp4e", "testAbove100")) {
         if (target > 100) {
           let addSL = Math.floor((target - 100) / 10)
+          recordSLAdjustment(this.result.slCalculation, "BREAKDOWN.Above100", SL, SL + addSL);
           SL += addSL;
         }
       }
@@ -397,6 +496,19 @@ export default class TestWFRP extends WarhammerTestBase {
     this.result.description = description
     this.result.outcome = outcome
     this.result.baseSL = baseSL;
+
+    if (FifthEdition.enabled("Outcome") && !this.context.unopposed) {
+      const before = `${this.result.SL} (${game.i18n.localize(this.succeeded ? "ROLL.Success" : "ROLL.Failure")})`;
+      FifthEdition.resolveOutcome(this); // 5e (p.131): the final SL decides success
+      recordSLAdjustment(this.result.slCalculation, "BREAKDOWN.Outcome", before, `${this.result.SL} (${game.i18n.localize(this.succeeded ? "ROLL.Success" : "ROLL.Failure")})`);
+    }
+    if (FifthEdition.enabled("Fate") && this.preData.useFate && !this.context.unopposed && this.result.outcome != "success") {
+      // 5e (p.133): I Will Not Fail! — you automatically succeed, whatever the modifiers say
+      recordSLAdjustment(this.result.slCalculation, "BREAKDOWN.Fate", `${this.result.SL} (${game.i18n.localize("ROLL.Failure")})`, `+0 (${game.i18n.localize("ROLL.Success")})`);
+      this.result.outcome = "success";
+      this.result.SL = "+0";
+      this.result.description = game.i18n.localize("ROLL.MarginalSuccess");
+    }
     this.result.breakdown = this.context.breakdown
 
     if (this.options.context) {
@@ -471,10 +583,18 @@ export default class TestWFRP extends WarhammerTestBase {
       if (this.isCriticalFumble == "fumble") {
         this.result.color_red = true;
         this.result.description = game.i18n.localize("ROLL.AstoundingFailure")
+        if (FifthEdition.enabled("CriticalSL") && Number(this.result.SL) > -5) {
+          recordSLAdjustment(this.result.slCalculation, "BREAKDOWN.FumbleBound", this.result.SL, "-5");
+          this.result.SL = "-5"; // 5e (p.130): a Fumble counts as -5 SL unless it would otherwise be worse
+        }
       }
       else if (this.isCriticalFumble == "critical") {
         this.result.color_green = true;
         this.result.description = game.i18n.localize("ROLL.AstoundingSuccess")
+        if (FifthEdition.enabled("CriticalSL") && Number(this.result.SL) < 5) {
+          recordSLAdjustment(this.result.slCalculation, "BREAKDOWN.CriticalBound", this.result.SL, "+5");
+          this.result.SL = "+5"; // 5e (p.130): a Critical counts as +5 SL unless it would otherwise be better
+        }
       }
     }
     return this.result
@@ -484,6 +604,15 @@ export default class TestWFRP extends WarhammerTestBase {
   {
     let roll = this.result.roll;
     let target = this.result.target;
+
+    // 5e decides success from the final SL, so a Critical is a double on a Test that succeeded rather than a double
+    // that happened to land under the Skill. Only meaningful once the Outcome toggle owns success; with it off the
+    // 4e reading below already agrees.
+    if (FifthEdition.enabled("Outcome"))
+    {
+      return FifthEdition.criticalFumble(roll, this.result.outcome);
+    }
+
     if ((roll > target && roll % 11 == 0) || roll == 100 || roll == 99)
     {
       return "fumble"
@@ -571,7 +700,17 @@ export default class TestWFRP extends WarhammerTestBase {
     }
 
     if (this.options.rest) {
-      this.result.woundsHealed = Math.max(Math.trunc(this.result.SL) + this.options.tb, 0);
+      if (FifthEdition.enabled("Healing")) {
+        // 5e (p.170): success recovers SL + TB; a restful day recovers a further TB even if the Test failed
+        let healed = this.succeeded ? Math.max(Math.trunc(this.result.SL), 0) + this.options.tb : 0;
+        if (this.options.restful) {
+          healed += this.options.tb;
+        }
+        this.result.woundsHealed = healed;
+      }
+      else {
+        this.result.woundsHealed = Math.max(Math.trunc(this.result.SL) + this.options.tb, 0);
+      }
     }
   }
 
@@ -866,6 +1005,9 @@ export default class TestWFRP extends WarhammerTestBase {
    * @param {Object} testData
    */
   async rollDices() {
+    if (FifthEdition.enabled("Fate") && this.preData.useFate && isNaN(this.preData.roll)) {
+      this.preData.roll = Math.clamp(Number(this.preData.fateRoll) || 1, 1, 100); // 5e (p.133): I Will Not Fail! chooses the result instead of rolling
+    }
     if (isNaN(this.preData.roll)) {
       let roll = await new Roll("1d100").roll();
       this.result.roll = roll.total;
@@ -1042,6 +1184,19 @@ export default class TestWFRP extends WarhammerTestBase {
     await this.renderRollCard()
   }
 
+  /**
+   * 5e (p.237): a Malignant Influence turns a Minor Miscast you would roll into a Major one, and does nothing else.
+   * @param {number} miscastCounter Miscast level computed by the 4e rules (with `_checkInfluences` disabled)
+   * @returns {number}
+   */
+  _applyInfluences5e(miscastCounter) {
+    if (FifthEdition.enabled("Magic") && this.preData.malignantInfluence && miscastCounter == 1) {
+      this.result.tooltips.miscast.push(game.i18n.localize("FIFTHED.MalignantUpgrade"));
+      return 2;
+    }
+    return miscastCounter;
+  }
+
   _handleMiscasts(miscastCounter) {
 
     if(this.preData.unofficialGrimoire) {
@@ -1131,10 +1286,14 @@ export default class TestWFRP extends WarhammerTestBase {
         testBreakdown += `<p><strong>${game.i18n.localize("Modifier")}</strong>: ${foundry.applications.handlebars.numberFormat(breakdown.modifier, {hash :{sign: true}})}</p>`
       }
 
-      // No need to show SL value unless it's boosted by slBonus or successBonus
-      if (breakdown.slBonus || (breakdown.successBonus && this.succeeded))
+      if (this.result.slCalculation)
       {
-        let SLstring = `<p><strong>${game.i18n.localize("SL")}</strong>: ${this.result.baseSL} (Base)`
+        testBreakdown += formatSLExplanation(this.result.slCalculation, this.result.SL);
+      }
+      // Older saved messages have no calculation snapshot.
+      else if (breakdown.slBonus || (breakdown.successBonus && this.succeeded))
+      {
+        let SLstring = `<p><strong>${game.i18n.localize("SL")}</strong>: ${this.result.baseSL} (${game.i18n.localize("BREAKDOWN.Base")})`
         
         if (breakdown.slBonus)
         {
@@ -1161,7 +1320,7 @@ export default class TestWFRP extends WarhammerTestBase {
           }
           SLstring += ` (${game.i18n.localize("DIALOG.SuccessBonus")})`;
         }
-        testBreakdown += SLstring
+        testBreakdown += SLstring + "</p>"
       }
 
       if (game.settings.get("wfrp4e", "SLMethod") != "default")
@@ -1169,16 +1328,14 @@ export default class TestWFRP extends WarhammerTestBase {
         testBreakdown += "<p>SL Evaluated with " + (game.settings.get("wfrp4e", "SLMethod") == "fast" ? "Fast SL" : "Degrees of Success") + "</p>"
       }
 
-      if (breakdown.modifier)
-      {
-        testBreakdown += `<p><strong>${game.i18n.localize("Modifier")}</strong>: ${foundry.applications.handlebars.numberFormat(breakdown.modifier, {hash :{sign: true}})}</p>`
-      }
-
-
       if (breakdown.modifiersBreakdown)
       {
         testBreakdown += `<hr><h4>${game.i18n.localize("CHAT.ModifiersBreakdown")}</h4>`
         testBreakdown += breakdown.modifiersBreakdown
+      }
+      if (breakdown.opposedModifiers)
+      {
+        testBreakdown += `<p>${breakdown.opposedModifiers}</p>`;
       }
 
       // @@@@@@@@@@@@@@@@@@ Damage @@@@@@@@@@@@@@@@@@@@

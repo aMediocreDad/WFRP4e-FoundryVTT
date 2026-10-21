@@ -7,7 +7,8 @@
   "scripts": {
     "build": "node scriptPacker.js&& cross-env NODE_ENV=development rollup --config rollup.config.mjs --watch",
     "release": "node scriptPacker.js&& cross-env NODE_ENV=production rollup --config rollup.config.mjs&& cross-env NODE_ENV=production node dbpacker.js",
-    "pack": "node dbpacker.js"
+    "pack": "node dbpacker.js",
+    "test": "node tests/fifth-edition.test.mjs && node tests/metacurrency.test.mjs && node tests/chargen-careers.test.mjs && node tests/fear-conditions.test.mjs && node tests/rules-singles.test.mjs && node tests/arcane-lore.test.mjs && node --test tests/breakdown.test.mjs && node tests/engagements.test.mjs"
   },
   "repository": {
     "type": "git",

@@ -97,10 +97,17 @@
           <label>{{localize "Fate"}}</label>
           <span>{{data.fate.total}}</span>
         </div>
+        {{#if fifthEdition.metacurrency}}
+        <div class="chargen-details">
+          <label>{{localize "Fortune"}}</label>
+          <span>{{data.fortune.total}}</span>
+        </div>
+        {{else}}
         <div class="chargen-details">
           <label>{{localize "Resilience"}}</label>
           <span>{{data.resilience.total}}</span>
         </div>
+        {{/if}}
 
 
         <div class="chargen-details">

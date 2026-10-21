@@ -1,5 +1,7 @@
 import WFRP_Utility from "../../system/utility-wfrp4e.js";
 import { ChargenStage } from "./stage";
+import FifthEdition from "../../system/fifth-edition.js";
+import { careerSkillsRefusal, speciesSkillsRefusal } from "./allocation.js";
 
 export class SkillsTalentsStage extends ChargenStage {
   journalId = "Compendium.wfrp4e-core.journals.JournalEntry.IQ0PgoJihQltCBUU.JournalEntryPage.f5Y4XenZVtDU2GUo"
@@ -92,6 +94,7 @@ export class SkillsTalentsStage extends ChargenStage {
 
   async getData() {
     let data = await super.getData();
+    data.fifthEdition = FifthEdition.flags;
 
     data.speciesSkillAllocation = {
       0: [],
@@ -284,7 +287,8 @@ export class SkillsTalentsStage extends ChargenStage {
   async validate() {
     let valid = super.validate();
 
-    if (!this.validateSkills())
+    // `true`: this is the Stage being submitted, so 5e's exact Species Skill count applies (see validateSkills)
+    if (!this.validateSkills(true))
       valid = false
 
     if (!this.#validateRandomSpeciesTalents()) {
@@ -302,8 +306,17 @@ export class SkillsTalentsStage extends ChargenStage {
       valid = false
     }
 
-    if (Object.values(this.context.careerSkills).reduce((prev, current) => prev + current, 0) > 40) {
+    // 4e spends up to 40 points, so 40 is a ceiling. 5e assigns exactly 8 Advances, so 40 is a total - checked below
+    // in one place instead, or a wrong 5e total would raise this error and that one together.
+    if (!FifthEdition.enabled("Metacurrency") && Object.values(this.context.careerSkills).reduce((prev, current) => prev + current, 0) > 40) {
       this.showError("CareerSkillAllocation")
+      valid = false
+    }
+
+    // 5e (p.38-39): all 8 Advances, each +5, no more than 3 Advances (+15) in any one Skill
+    let careerSkillRefusal = careerSkillsRefusal(Object.values(this.context.careerSkills))
+    if (careerSkillRefusal) {
+      this.showError(careerSkillRefusal)
       valid = false
     }
 
@@ -314,11 +327,25 @@ export class SkillsTalentsStage extends ChargenStage {
     return !this.#getTalentTablesArray().some(table => table.left > 0 || (table.count > 0 && table.rolled === false));
   }
 
-  validateSkills() {
+  /**
+   * @param {boolean} final True when the Stage is being submitted. onDropSkill undoes any drop this refuses, so the
+   *                        exact count of 5e Species Skills can only be demanded at submission - demanded on every
+   *                        drop it would revert the first Skill dropped and the step could never be completed.
+   */
+  validateSkills(final = false) {
     let skills = Object.values(this.context.speciesSkills)
     let threes = skills.filter(i => i == 3).length
     let fives = skills.filter(i => i == 5).length
 
+    if (FifthEdition.enabled("Metacurrency")) {
+      // 5e (p.27-35): one Advance (+5) to exactly five Species Skills
+      let refusal = speciesSkillsRefusal(skills, final)
+      if (refusal) {
+        this.showError(refusal)
+        return false
+      }
+      return true
+    }
     if (threes > 3 || fives > 3) {
       this.showError("SpeciesSkillAdvancements")
       return false
@@ -358,7 +385,14 @@ export class SkillsTalentsStage extends ChargenStage {
 
     html.find(".career-skills input").change(ev => {
       ev.currentTarget.value = Math.max(0, Number(ev.currentTarget.value))
-      if (ev.currentTarget.value > 10) {
+      if (FifthEdition.enabled("Metacurrency")) {
+        // 5e (p.39): Advances of +5, at most 3 (+15) in one Skill
+        if (ev.currentTarget.value > 15 || ev.currentTarget.value % 5 != 0) {
+          ev.currentTarget.value = 0;
+          this.showError("CareerSkillAllocation5e")
+        }
+      }
+      else if (ev.currentTarget.value > 10) {
         ev.currentTarget.value = 0;
         this.showError("CareerSkillAllocationBounds")
       }

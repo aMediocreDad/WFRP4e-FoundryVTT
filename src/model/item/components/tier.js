@@ -28,7 +28,7 @@ static LOCALIZATION_PREFIXES = ["WH.Models.careerTier"];
 
   get availableCharacteristics()
   {
-    return Object.keys(this.parent.characteristics).filter(ch => this.parent.characteristics[ch] <= this.level);
+    return Object.keys(this.parent.characteristics).filter(ch => this.parent.characteristics[ch] != null && this.parent.characteristics[ch] <= this.level); // null <= n is true in JS, and null means never
   }
 
   get availableSkills()

@@ -2,6 +2,7 @@ import controlButtons from "../hooks/getSceneControlButtons.js"
 import settings from "../hooks/settings.js"
 import i18n from "../hooks/i18n.js"
 import init from "../hooks/init.js"
+import setup from "../hooks/setup.js"
 import ready from "../hooks/ready.js"
 import canvas from "../hooks/canvas.js"
 import chat from "../hooks/chat.js"
@@ -13,10 +14,12 @@ import rolltable from "../hooks/rolltable.js"
 import entryContext from "../hooks/entryContext.js"
 import token from "../hooks/token.js"
 import commands from "../hooks/commands.js"
+import engagements from "../hooks/engagements.js"
 
 import {NODE_ENV} from 'process.env';
 export default function registerHooks() {
     init()
+    setup()
     ready()
     canvas()
     chat()
@@ -31,6 +34,7 @@ export default function registerHooks() {
     i18n();
     settings();
     commands();
+    engagements();
 
     if (NODE_ENV === "development") {
         Hooks.on("renderApplication", (app, html, data) => {

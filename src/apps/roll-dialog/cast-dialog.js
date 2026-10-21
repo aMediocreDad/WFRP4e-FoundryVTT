@@ -1,5 +1,6 @@
 import CharacteristicDialog from "./characteristic-dialog";
 import SkillDialog from "./skill-dialog";
+import FifthEdition from "../../system/fifth-edition.js";
 
 export default class CastDialog extends SkillDialog {
 
@@ -109,6 +110,15 @@ export default class CastDialog extends SkillDialog {
         return foundry.utils.mergeObject({
             overchannelling : 0
         }, super._defaultFields());
+    }
+
+    computeFields()
+    {
+        super.computeFields();
+        if (FifthEdition.enabled("ArmourWinds"))
+        {
+            this._computeArmourWinds(this.spell?.system.lore.value);
+        }
     }
 
     // Backwards compatibility for effects

@@ -12,7 +12,8 @@
     </div>
 
 
-    {{#unless (settings "editionSettings.use5e")}}
+    {{#unless (or (settings "editionSettings.use5e") fifthEdition.metacurrency)}}
+    {{!-- 5e has no Motivations: they only existed to refresh Resolve (p.364) --}}
     <div class="form-group">
         <label>{{localize "Motivation"}}</label>
         <div class="form-fields">
@@ -21,58 +22,86 @@
     </div>
     {{/unless}}
 
-        {{#if (settings "editionSettings.use5e")}}
+    {{#if (settings "editionSettings.use5e")}}
+    <div class="form-group">
+        <label>{{localize "Personal Ambitions"}}</label>
+        <div class="form-fields">
+            <input name="system.details.personal-ambitions.long-term" type="text" value="{{system.details.personal-ambitions.long-term}}" />
+        </div>
+    </div>
 
-            <div class="form-group">
-                <label>{{localize "Personal Ambitions"}}</label>
-                <div class="form-fields">
-                    <input name="system.details.personal-ambitions.long-term" type="text" value="{{system.details.personal-ambitions.long-term}}" />
-                </div>
+    <div class="form-group">
+        <label>{{localize "Party Ambitions"}}</label>
+        <div class="form-fields">
+           <input name="system.details.party-ambitions.long-term" type="text" value="{{system.details.party-ambitions.long-term}}" />
+        </div>
+    </div>
+    {{else if fifthEdition.ambitions}}
+    {{!-- 5e (p.41-42): one personal Ambition (50 XP for progress, 250 XP when achieved) and one Party Ambition (+1 Fate to each Character when completed) --}}
+    <fieldset>
+        <legend>{{localize "FIFTHED.Ambition"}}</legend>
+        <div class="form-group">
+            <div class="form-fields">
+                <input name="system.details.personal-ambitions.long-term" type="text"
+                    value="{{system.details.personal-ambitions.long-term}}" />
+                <a class="ambition-award" data-action="ambitionProgress" data-tooltip="{{localize 'FIFTHED.AmbitionProgressTooltip'}}"><i class="fa-solid fa-shoe-prints"></i></a>
+                <a class="ambition-award" data-action="ambitionAchieved" data-tooltip="{{localize 'FIFTHED.AmbitionAchievedTooltip'}}"><i class="fa-solid fa-trophy"></i></a>
             </div>
+        </div>
+    </fieldset>
 
-            <div class="form-group">
-                <label>{{localize "Party Ambitions"}}</label>
-                <div class="form-fields">
-                   <input name="system.details.party-ambitions.long-term" type="text" value="{{system.details.party-ambitions.long-term}}" />
-                </div>
+    <fieldset>
+        <legend>{{localize "FIFTHED.PartyAmbition"}}</legend>
+        <div class="form-group">
+            <div class="form-fields">
+                <input name="system.details.party-ambitions.long-term" type="text"
+                    value="{{system.details.party-ambitions.long-term}}" />
+                <a class="ambition-award" data-action="partyAmbitionComplete" data-tooltip="{{localize 'FIFTHED.PartyAmbitionCompleteTooltip'}}"><i class="fa-solid fa-star"></i></a>
             </div>
+        </div>
+    </fieldset>
+    {{else}}
+    <fieldset>
 
-        {{else}}
-                <fieldset>
-            <legend>{{localize "Personal Ambitions"}}</legend>
-            <div class="form-group">
-                <label>{{localize "Short Term"}}</label>
-                <div class="form-fields">
-                    <input name="system.details.personal-ambitions.short-term" type="text" value="{{system.details.personal-ambitions.short-term}}" />
-                </div>
+        <legend>{{localize "Personal Ambitions"}}</legend>
+        <div class="form-group">
+            <label>{{localize "Short Term"}}</label>
+            <div class="form-fields">
+                <input name="system.details.personal-ambitions.short-term" type="text"
+                    value="{{system.details.personal-ambitions.short-term}}" />
             </div>
+        </div>
 
-            <div class="form-group">
-                <label>{{localize "Long Term"}}</label>
-                <div class="form-fields">
-                    <input name="system.details.personal-ambitions.long-term" type="text" value="{{system.details.personal-ambitions.long-term}}" />
-                </div>
+        <div class="form-group">
+            <label>{{localize "Long Term"}}</label>
+            <div class="form-fields">
+                <input name="system.details.personal-ambitions.long-term" type="text"
+                    value="{{system.details.personal-ambitions.long-term}}" />
             </div>
-        </fieldset>
+        </div>
+    </fieldset>
 
-        <fieldset>
-            <legend>{{localize "Party Ambitions"}}</legend>
+    <fieldset>
 
-            <div class="form-group">
-                <label>{{localize "Short Term"}}</label>
-                <div class="form-fields">
-                    <input name="system.details.party-ambitions.short-term" type="text" value="{{system.details.party-ambitions.short-term}}" />
-                </div>
+        <legend>{{localize "Party Ambitions"}}</legend>
+
+        <div class="form-group">
+            <label>{{localize "Short Term"}}</label>
+            <div class="form-fields">
+                <input name="system.details.party-ambitions.short-term" type="text"
+                    value="{{system.details.party-ambitions.short-term}}" />
             </div>
+        </div>
 
-            <div class="form-group">
-                <label>{{localize "Long Term"}}</label>
-                <div class="form-fields">
-                   <input name="system.details.party-ambitions.long-term" type="text" value="{{system.details.party-ambitions.long-term}}" />
-                </div>
+        <div class="form-group">
+            <label>{{localize "Long Term"}}</label>
+            <div class="form-fields">
+                <input name="system.details.party-ambitions.long-term" type="text"
+                    value="{{system.details.party-ambitions.long-term}}" />
             </div>
-        </fieldset>
-        {{/if}}
+        </div>
+    </fieldset>
+    {{/if}}
 
     <div class="experience-log">
 

@@ -3,6 +3,7 @@ import WFRP_Audio from "../../system/audio-wfrp4e";
 import ActiveEffectWFRP4e from "../../system/effect-wfrp4e";
 import WFRP_Utility from "../../system/utility-wfrp4e";
 import { OvercastItemModel } from "./components/overcast";
+import FifthEdition from "../../system/fifth-edition.js";
 let fields = foundry.data.fields;
 
 export class SpellModel extends OvercastItemModel {
@@ -226,12 +227,22 @@ export class SpellModel extends OvercastItemModel {
     }
 
     computeBase() {
+      this._computeLoreEffects();
+    }
 
+    /**
+     * Build one Lore Attribute effect per entry of lore.value and append the Lore's printed text.
+     *
+     * Split out of computeBase so it can be re-run when lore.value changes after base preparation, which is what a
+     * derived Arcane Lore does - see _deriveArcaneLore.
+     */
+    _computeLoreEffects()
+    {
       this.lore.effects = {};
       for(let lore of this.lore.value)
       {
         let effect = foundry.utils.deepClone(game.wfrp4e.config.loreEffects[lore])
-        if (effect) 
+        if (effect)
         {
           foundry.utils.setProperty(effect, "flags.wfrp4e.lore", lore);
           foundry.utils.setProperty(effect, "flags.wfrp4e.path", "system.lore.effects." + lore);
@@ -241,10 +252,52 @@ export class SpellModel extends OvercastItemModel {
       this._addSpellDescription();
     }
 
+    /**
+     * The Lore whose Attribute this spell actually applies.
+     *
+     * With more than one Lore the owner picks one on the sheet and it is kept in lore.chosen. That choice can now go
+     * stale in a way it never could before: a derived Lore changes whenever the owner's Talents change, which is not
+     * when the picker was last used, so a chosen Lore the spell no longer carries falls back to the first one rather
+     * than reaching no Lore Attribute at all.
+     *
+     * @returns {string|undefined} the empty string for a spell stored with no Lore of its own (the content writes
+     *                             that as [""]), and undefined only when lore.value is genuinely empty
+     */
+    get effectiveLore()
+    {
+      return this.lore.value.includes(this.lore.chosen) ? this.lore.chosen : this.lore.value[0];
+    }
+
+    /**
+     * 5e (p.242): an Arcane Spell is "counted as [a] Lore Spell in all ways, meaning [it gets] the Lore Attributes of
+     * Lore Spells" - the Lore being the caster's own, from their Arcane Magic (<Lore>) and Chaos Magic (<Lore>)
+     * Talents. 4e delivered this by shipping each Arcane spell once per Lore; the 5e content ships one untagged copy
+     * of each, so the Lore is derived from the owner here instead.
+     *
+     * An Arcane spell is one carrying no Lore key of its own. The converted content writes that as [""], a
+     * one-element array holding the empty string, rather than [], so the test is for no non-empty key.
+     *
+     * Derived state only. lore.value is rebuilt from the owner's Talents on every preparation cycle and never
+     * written back to the Item, so a spell that changes hands takes its new owner's Lore, and the stored source
+     * stays exactly as the content module shipped it.
+     */
+    _deriveArcaneLore()
+    {
+        if (this.lore.value.some(lore => lore)) return; // carries a Lore of its own, so not an Arcane spell
+        let lores = FifthEdition.arcaneLores(this.parent?.actor); // returns [] while the Magic toggle is off
+        if (!lores.length) return;
+        this.lore.value = lores; // a new array - _source keeps the shipped [""]
+        this._computeLoreEffects();
+    }
+
     computeOwned()
     {
-        this.cn.value = this.memorized.value ? this.cn.value : this.cn.value * 2;
-        if (this.ritual?.value && !this.memorized.value)
+        this._deriveArcaneLore();
+
+        // 5e (p.237): a spell cast from a grimoire keeps its CN, you just cannot Overcast it
+        let grimoireDoubling = !this.memorized.value && !FifthEdition.enabled("Magic");
+        this.cn.value = grimoireDoubling ? this.cn.value * 2 : this.cn.value;
+        if (this.ritual?.value && grimoireDoubling)
         {
           this.cn.value *= 2; // Unmemorized rituals are 4 * CN
         }
@@ -291,7 +344,9 @@ export class SpellModel extends OvercastItemModel {
     {
       if (this.lore.value.length > 1)
       {
-        return super.getOtherEffects().concat(this.lore.effects?.[this.lore.chosen || this.lore.value[0]] || [])
+        // effectiveLore rather than `chosen || value[0]`: a derived Lore changes with the owner's Talents, so a
+        // chosen Lore the spell no longer carries would otherwise resolve to nothing and apply no Attribute at all.
+        return super.getOtherEffects().concat(this.lore.effects?.[this.effectiveLore] || [])
       }
       else 
       {
@@ -318,8 +373,11 @@ export class SpellModel extends OvercastItemModel {
         if (this.lore.effectString)
             description += `<p>\n\n <b>${game.i18n.localize("SPELL.Lore")}</b> ${this.lore.effectString}<p>`;
         // Otherwise, use config value for lore effect
-        else if (game.wfrp4e.config.loreEffectDescriptions && game.wfrp4e.config.loreEffectDescriptions[this.lore.value])
-            description += `<p>\n\n <b>${game.i18n.localize("SPELL.Lore")}</b> ${game.wfrp4e.config.loreEffectDescriptions[this.lore.value]}<p>`;
+        // Indexed by the effective Lore, not by lore.value: lore.value is an array, and indexing an object with it
+        // only worked because a one-element array coerces to its element. A spell with two Lores prints the one its
+        // owner picked, which is the same Lore getOtherEffects applies.
+        else if (game.wfrp4e.config.loreEffectDescriptions && game.wfrp4e.config.loreEffectDescriptions[this.effectiveLore])
+            description += `<p>\n\n <b>${game.i18n.localize("SPELL.Lore")}</b> ${game.wfrp4e.config.loreEffectDescriptions[this.effectiveLore]}<p>`;
 
         this.description.value = description
     }

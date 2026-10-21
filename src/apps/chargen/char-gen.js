@@ -5,6 +5,7 @@ import { AttributesStage } from "./attributes";
 import { SkillsTalentsStage } from "./skills-talents";
 import { TrappingStage } from "./trappings";
 import { DetailsStage } from "./details";
+import FifthEdition from "../../system/fifth-edition.js";
 
 
 /**
@@ -41,6 +42,9 @@ export default class CharGenWfrp4e extends FormApplication {
       },
       fate: { base: 0, allotted: 0 },
       resilience: { base: 0, allotted: 0 },
+      fortune: { base: 0 },
+      random: { species: false, career: false, characteristics: false }, // whether each first random result was kept (5e Oh Fickle Fate)
+      fifthEd: { trappings: [], ticks: 0 }, // 5e rewards for keeping a random career
       move: 4,
       details : {
         gender : "",
@@ -51,6 +55,7 @@ export default class CharGenWfrp4e extends FormApplication {
         eyes : "",
         short : "",
         long : "",
+        party : "",
       },
       misc : {
         // Object for stages to add whatever data they wish to be merged into actor data
@@ -210,6 +215,7 @@ export default class CharGenWfrp4e extends FormApplication {
 
     this.data.fate.total = this.data.fate.allotted + this.data.fate.base
     this.data.resilience.total = this.data.resilience.allotted + this.data.resilience.base
+    this.data.fortune.total = this.data.fortune?.base || 0
 
     this.stages.forEach(stage => {
       stage.title ??= stage.class.title;
@@ -217,6 +223,7 @@ export default class CharGenWfrp4e extends FormApplication {
 
     return {
       characteristics,
+      fifthEdition : FifthEdition.flags,
       speciesDisplay : this.data.subspecies ? `${game.wfrp4e.config.species[this.data.species]} (${game.wfrp4e.config.subspecies[this.data.species]?.[this.data.subspecies].name})` :  game.wfrp4e.config.species[this.data.species],
       stages: this.stages,
       data : this.data,
@@ -309,10 +316,50 @@ export default class CharGenWfrp4e extends FormApplication {
 
       foundry.utils.mergeObject(this.actor.system.characteristics, this.data.characteristics, {overwrite : true})
       this.actor.system.status.fate.value = this.data.fate.base + this.data.fate.allotted
-      this.actor.system.status.resilience.value = this.data.resilience.base + this.data.resilience.allotted
-
-      this.actor.system.status.fortune.value =  this.actor.system.status.fate.value
-      this.actor.system.status.resolve.value =  this.actor.system.status.resilience.value
+      if (FifthEdition.enabled("Metacurrency"))
+      {
+        // 5e: Fortune is fixed by Species; Resilience and Resolve no longer exist (p.364)
+        this.actor.system.status.fortune.value = this.data.fortune?.base || 0
+        // Seeds the stored maximum, which CharacterModel.computeFortune derives over unless the actor opts out of
+        // the calculation - so a generated character starts from the right number either way
+        this.actor.system.status.fortune.max = this.actor.system.status.fortune.value
+        this.actor.system.status.resilience.value = 0
+        this.actor.system.status.resolve.value = 0
+        if (this.data.random?.species)
+        {
+          // 5e (p.22): "Roll on the Species Table, and gain an extra point of Fortune if you accept the first
+          // result." Read as a permanent addition to the maximum, not a single point on top of it - Fortune
+          // refreshes to its maximum, so a point above that would be gone by the end of the first session, which is
+          // no reward at all beside the permanent +1 Fate below. It rides on an effect rather than a stored number
+          // so it is visible on the sheet, removable by a GM who reads it the other way, and goes through the same
+          // fortuneCalc trigger any other source of Fortune would.
+          this.actor.effects = (this.actor.effects || []).concat([{
+            name: game.i18n.localize("CHARGEN.FifthEd.SpeciesFortune"),
+            img: "systems/wfrp4e/icons/blank.png",
+            system: {
+              transferData: {},
+              scriptData: [{
+                label: game.i18n.localize("CHARGEN.FifthEd.SpeciesFortune"),
+                trigger: "fortuneCalc",
+                script: "args.fortune += 1"
+              }]
+            }
+          }]);
+          ui.notifications.info("CHARGEN.FifthEd.SpeciesFortuneGained", { localize: true });
+        }
+        if (this.data.random?.species && this.data.random?.career && this.data.random?.characteristics)
+        {
+          this.actor.system.status.fate.value += 1; // 5e "Oh Fickle Fate" (p.40): accepting every first random result grants +1 Fate
+          ui.notifications.info("CHARGEN.FifthEd.FickleFate", { localize: true });
+        }
+      }
+      else
+      {
+        this.actor.system.status.resilience.value = this.data.resilience.base + this.data.resilience.allotted
+        this.actor.system.status.fortune.value =  this.actor.system.status.fate.value
+        this.actor.system.status.fortune.max =  this.actor.system.status.fate.value // Seeded, then derived - see above
+        this.actor.system.status.resolve.value =  this.actor.system.status.resilience.value
+      }
 
       this.actor.system.details.move.value = this.data.move
 
@@ -326,6 +373,9 @@ export default class CharGenWfrp4e extends FormApplication {
       this.actor.system.details["personal-ambitions"] = {
         "short-term" : this.data.details.short,
         "long-term" : this.data.details.long
+      }
+      if (this.data.details.party) {
+        this.actor.system.details["party-ambitions"] = { "long-term" : this.data.details.party }; // 5e (p.42)
       }
 
       foundry.utils.mergeObject(this.actor, foundry.utils.expandObject(this.data.misc), {overwrite : true})
@@ -360,6 +410,13 @@ export default class CharGenWfrp4e extends FormApplication {
       })
 
 
+      // Under 5e Career Advancement the character holds a Career Path, and Career Items are refused - see _addCareerPath
+      let careerPaths = game.settings.get("wfrp4e", "editionSettings").careerAdvancement5e;
+      if (careerPaths)
+      {
+        this.actor.items = this.actor.items.filter(i => i.type != "career");
+      }
+
       // Must create items separately so preCreate scripts run
       let actorItems = this.actor.items;
       this.actor.items = [];
@@ -368,7 +425,11 @@ export default class CharGenWfrp4e extends FormApplication {
       {
 
         let document = await Actor.implementation.create(this.actor, {skipItems : true});
-        await document.createEmbeddedDocuments("Item", actorItems, {skipSpecialisationChoice : true})
+        await document.createEmbeddedDocuments("Item", actorItems, {skipSpecialisationChoice : true, skipCareerAdvancement : true})
+        if (careerPaths)
+        {
+          await this._addCareerPath(document);
+        }
         // for(let i of document.items.contents)
         // {
         //   // Run onCreate scripts
@@ -383,7 +444,11 @@ export default class CharGenWfrp4e extends FormApplication {
         const payload =  {id : game.user.id, data : this.actor, options : {skipSpecialisationChoice : true, skipItems : true, keepId : true}}
         await SocketHandlers.call("createActor", payload, "GM");
         let actor = game.actors.get(actorId);
-        await actor.createEmbeddedDocuments("Item", actorItems, {skipSpecialisationChoice : true})
+        await actor.createEmbeddedDocuments("Item", actorItems, {skipSpecialisationChoice : true, skipCareerAdvancement : true})
+        if (careerPaths)
+        {
+          await this._addCareerPath(actor);
+        }
         if (actor && actor.isOwner) 
         {
           // for(let i of actor.items.contents)
@@ -399,6 +464,43 @@ export default class CharGenWfrp4e extends FormApplication {
     catch(e)
     {
       ui.notifications.error(game.i18n.format("CHARGEN.ERROR.Create", {error: e}))
+    }
+  }
+
+  /**
+   * Under upstream's 5e Career Advancement (editionSettings.careerAdvancement5e) a character holds a Career Path, not
+   * Career Items, which the system refuses to create. The stages keep working from the Career Item they rolled or
+   * chose; only the finished character swaps it for the Path of the same Career Group, entered at the same level.
+   *
+   * The p.36 Trappings from the second level become the tier's first Advancements: "This is the only time you may do
+   * so during Character Creation", which is also why every other item was created with skipCareerAdvancement.
+   *
+   * @param {Actor} actor The character just created
+   */
+  async _addCareerPath(actor)
+  {
+    let career = this.data.items.career;
+    let index = await warhammer.utility.findAllItems("careerPath", "", true);
+    let entry = index.find(i => i.name == career.system.careergroup.value);
+    let path = entry && await fromUuid(entry.uuid);
+    let tier = path?.system.getTier(Number(career.system.level.value));
+    if (!tier)
+    {
+      ui.notifications.error(game.i18n.format("CHARGEN.FifthEd.NoCareerPath", { career: career.system.careergroup.value }), { permanent: true });
+      return;
+    }
+
+    // The tier is passed in, so CareerPathModel neither prompts for it nor charges the Change Career XP
+    let [created] = await actor.createEmbeddedDocuments("Item", [path.toObject()], { tier: tier.id });
+
+    let trappings = this.data.fifthEd?.trappings || [];
+    if (trappings.length)
+    {
+      let field = actor.system.career.schema.fields.advancements.fieldPath;
+      await actor.update({ [`${field}.${created.id}-${tier.id}.list`]: trappings.map(t => ({
+        type: "trapping",
+        label: game.i18n.format("5e.Advancement.Trapping", { trapping: t })
+      })) });
     }
   }
 

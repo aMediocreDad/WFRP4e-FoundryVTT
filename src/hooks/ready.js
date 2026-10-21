@@ -1,6 +1,7 @@
 import WFRP_Utility from "../system/utility-wfrp4e.js";
 import FoundryOverrides from "../system/overrides.js";
 import MooHouseRules from "../system/moo-house.js"
+import FifthEdition from "../system/fifth-edition.js"
 import socketHandlers from "../system/socket-handlers.js";
 
 export default function () {
@@ -93,6 +94,7 @@ export default function () {
     CONFIG.statusEffects = game.wfrp4e.config.statusEffects;
 
     MooHouseRules();
+    FifthEdition.apply();
 
     game.wfrp4e.tags.createTags();
   })

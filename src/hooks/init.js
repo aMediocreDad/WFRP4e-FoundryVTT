@@ -93,7 +93,8 @@ export default function() {
         "default": "SETTINGS.InitDefault",
         "sl": "SETTINGS.InitSL",
         "d10Init": "SETTINGS.InitD10",
-        "d10InitAgi": "SETTINGS.InitD10Agi"
+        "d10InitAgi": "SETTINGS.InitD10Agi",
+        "d10InitBonus": "SETTINGS.InitD10Bonus"
       },
       onChange: rule => _setWfrp4eInitiative(rule)
     });
@@ -118,9 +119,13 @@ export default function() {
         case "d10InitAgi":
           formula = "1d10 + @characteristics.i.bonus + @characteristics.ag.bonus"
           break;
+
+        case "d10InitBonus": // WFRP 5e (p.161): d10 + Initiative Bonus, ties broken by Initiative
+          formula = "1d10 + @characteristics.i.bonus + @characteristics.i.value/100"
+          break;
       }
 
-      let decimals = (initMethod == "default") ? 2 : 0;
+      let decimals = (initMethod == "default" || initMethod == "d10InitBonus") ? 2 : 0;
       CONFIG.Combat.initiative = {
         formula: formula,
         decimals: decimals
@@ -514,7 +519,9 @@ export default function() {
       defaultFields: 'systems/wfrp4e/templates/dialog/type/5e/default-fields.hbs',
       dialogState: 'systems/wfrp4e/templates/dialog/type/5e/partials/dialog-state.hbs',
       testButtons: 'systems/wfrp4e/templates/chat/roll/5e/test-buttons.hbs',
-      testResults: "systems/wfrp4e/templates/chat/roll/5e/test5e.hbs"
+      testResults: "systems/wfrp4e/templates/chat/roll/5e/test5e.hbs",
+      fifthEditionSpends: "systems/wfrp4e/templates/dialog/partials/fifth-edition-spends.hbs",
+      manualModifiers: "systems/wfrp4e/templates/dialog/partials/manual-modifiers.hbs"
     });
 
     // Load name construction from files

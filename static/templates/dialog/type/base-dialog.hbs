@@ -2,26 +2,57 @@
   <div class="form-group">
     <label>{{localize "Advantage"}}</label>
     <div class="form-fields">
+    {{#if fifthEdition.momentum}}
+    {{!-- 5e (p.168): you either have Momentum or you don't --}}
+    <input type="checkbox" name="advantage" {{checked data.actor.system.status.advantage.value}} />
+    {{else}}
     <input type="number" name="advantage" value="{{data.actor.system.status.advantage.value}}" />
+    {{/if}}
     </div>
   </div>
 
-  <div class="form-group" {{#if tooltips.modifier}}data-tooltip="{{tooltips.modifier}}" data-tooltip-direction="LEFT"{{/if}}>
+  {{#if fifthEdition.usesAdvantage}}
+  <div class="form-group" {{#if tooltips.advSources}}data-tooltip="{{tooltips.advSources}}" data-tooltip-direction="LEFT"{{/if}}>
+    <label>{{localize "FIFTHED.Advantage"}}</label>
+    <div class="form-fields">
+      <input type="number" name="advSources" min="0" value="{{fields.advSources}}" />
+    </div>
+  </div>
+
+  <div class="form-group" {{#if tooltips.disSources}}data-tooltip="{{tooltips.disSources}}" data-tooltip-direction="LEFT"{{/if}}>
+    <label>{{localize "FIFTHED.Disadvantage"}}</label>
+    <div class="form-fields">
+      <input type="number" name="disSources" min="0" value="{{fields.disSources}}" />
+    </div>
+  </div>
+  {{/if}}
+
+  {{!-- Spending Fortune and Fate moved to `fifthEditionSpends`, beside Difficulty: they are
+        choices about the roll rather than values feeding into this column. --}}
+
+  {{!-- Each of the three below falls back to explaining what the field is for when nothing has
+        contributed to it, since `tooltips.*` only holds the sources collected for this roll. --}}
+  {{!-- The percentage Modifier has no place under the 5e Modifiers toggle, which prices everything in SL - but it
+        stays visible if anything has written to it anyway, so no modifier can apply unseen. Manual adjustments go
+        through `manualModifiers` instead, beside Difficulty. --}}
+  {{#if showModifier}}
+  <div class="form-group" data-tooltip="{{#if tooltips.modifier}}{{tooltips.modifier}}{{else}}{{localize 'DIALOG.ModifierTT'}}{{/if}}" data-tooltip-direction="LEFT">
     <label>{{localize "Modifier"}}</label>
     <div class="form-fields">
       <input type="number" name="modifier" value="{{fields.modifier}}" />
     </div>
   </div>
+  {{/if}}
 
-  <div class="form-group" {{#if tooltips.slBonus}}data-tooltip="{{tooltips.slBonus}}" data-tooltip-direction="LEFT"{{/if}}>
+  <div class="form-group" data-tooltip="{{#if tooltips.slBonus}}{{tooltips.slBonus}}{{else}}{{localize 'DIALOG.SLBonusTT'}}{{/if}}" data-tooltip-direction="LEFT">
     <label>{{localize "DIALOG.SLBonus"}}</label>
     <div class="form-fields">
       <input type="number" name="slBonus" value="{{fields.slBonus}}" />
     </div>
   </div>
 
-  <div class="form-group" {{#if tooltips.successBonus}}data-tooltip="{{tooltips.successBonus}}" data-tooltip-direction="LEFT" {{/if}}>
-    <label title="{{localize 'DIALOG.SuccessBonusTT'}}">{{localize "DIALOG.SuccessBonus"}}</label>
+  <div class="form-group" data-tooltip="{{#if tooltips.successBonus}}{{tooltips.successBonus}}{{else}}{{localize 'DIALOG.SuccessBonusTT'}}{{/if}}" data-tooltip-direction="LEFT">
+    <label>{{localize "DIALOG.SuccessBonus"}}</label>
     <div class="form-fields">
       <input type="number" name="successBonus" value="{{fields.successBonus}}" />
     </div>

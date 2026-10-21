@@ -1,5 +1,6 @@
 import { ChargenStage } from "./stage";
 import WFRP_Utility from "../../system/utility-wfrp4e.js";
+import FifthEdition from "../../system/fifth-edition.js";
 
 export class SpeciesStage extends ChargenStage {
 
@@ -55,6 +56,7 @@ export class SpeciesStage extends ChargenStage {
       }
     }
 
+    this.context.fifthEdition = FifthEdition.flags;
     data.speciesDisplay = game.wfrp4e.config.species[this.context.species];
 
     if (this.context.species && game.wfrp4e.config.subspecies[this.context.species]) {
@@ -72,6 +74,7 @@ export class SpeciesStage extends ChargenStage {
         fate: game.wfrp4e.config.subspecies[this.context.species]?.[this.context.subspecies]?.fate ?? game.wfrp4e.config.speciesFate[this.context.species],
         resilience: game.wfrp4e.config.subspecies[this.context.species]?.[this.context.subspecies]?.resilience ?? game.wfrp4e.config.speciesRes[this.context.species],
         extra: game.wfrp4e.config.subspecies[this.context.species]?.[this.context.subspecies]?.extra ?? game.wfrp4e.config.speciesExtra[this.context.species],
+        fortune: game.wfrp4e.config.subspecies[this.context.species]?.[this.context.subspecies]?.fortune ?? game.wfrp4e.config.speciesFortune[this.context.species] ?? (game.wfrp4e.config.subspecies[this.context.species]?.[this.context.subspecies]?.fate ?? game.wfrp4e.config.speciesFate[this.context.species]),
         ...WFRP_Utility.speciesSkillsTalents(this.context.species, this.context.subspecies)
       }
 
@@ -136,7 +139,7 @@ export class SpeciesStage extends ChargenStage {
   // Set roll, unselect whatever user has chosen
   async onRollSpecies(event) {
     event.stopPropagation();
-    this.context.exp = 20;
+    this.context.exp = FifthEdition.enabled("Metacurrency") ? 0 : 20; // 5e (p.40): no XP for random rolls, see Oh Fickle Fate
     this.context.roll = await game.wfrp4e.tables.rollTable("species");
     this.context.choose = false;
     this.updateMessage("Rolled", {rolled : this.context.roll.name})
@@ -161,6 +164,7 @@ export class SpeciesStage extends ChargenStage {
     this.data.species = this.context.species;
     this.data.subspecies = this.context.subspecies;
     this.data.exp.species = this.context.exp;
+    (this.data.random ??= {}).species = !!this.context.roll && !this.context.choose; // kept the first random result (5e Oh Fickle Fate)
     super._updateObject(event, formData)
 
   }

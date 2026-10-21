@@ -24,7 +24,8 @@ export class TrappingStage extends ChargenStage {
     super(...args);
 
     this.context.classStrings = game.wfrp4e.config.classTrappings[this.data.items.career.system.class.value]?.split(",") || [];
-    this.context.careerStrings = this.data.items.career.system.trappings;
+    // 5e (p.36): Trappings from career level 2 granted for keeping a random career
+    this.context.careerStrings = this.data.items.career.system.trappings.concat(this.data.fifthEd?.trappings || []);
 
     if (this.context.classStrings.length == 0) {
       this.showError("ClassTrappingsNotFound", { class: this.data.items.career.system.class.value })

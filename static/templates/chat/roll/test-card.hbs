@@ -1,5 +1,9 @@
-        <div class="test-title" data-tooltip="{{test.result.breakdown.formatted.test}}" data-tooltip-direction="LEFT" >
+        <div class="test-title">
             {{test.context.title}}
+            <details class="test-breakdown">
+                <summary aria-label="{{localize 'BREAKDOWN.Explanation'}}" data-tooltip="{{localize 'BREAKDOWN.Explanation'}}"><i class="fa-solid fa-circle-info" aria-hidden="true"></i></summary>
+                <div class="breakdown-content">{{{test.result.breakdown.formatted.test}}}</div>
+            </details>
         </div>
     
         <div class="hide-option comparison">

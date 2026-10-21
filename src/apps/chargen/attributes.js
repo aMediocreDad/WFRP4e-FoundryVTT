@@ -1,4 +1,5 @@
 import { ChargenStage } from "./stage";
+import FifthEdition from "../../system/fifth-edition.js";
 
 const Step = {NOT_STARTED : 0, FIRST_ROLL : 1, SWAPPING : 2, REROLL : 3, ALLOCATING : 4}
 
@@ -45,6 +46,7 @@ export class AttributesStage extends ChargenStage {
     this.context.meta = {
       fate: { base: 0, allotted: 0, total: 0 },
       resilience: { base: 0, allotted: 0, total: 0 },
+      fortune: { base: 0, total: 0 },
       extra: 0,
       left: 0
     };
@@ -54,6 +56,7 @@ export class AttributesStage extends ChargenStage {
 
   async getData() {
     let data = await super.getData();
+    this.context.fifthEdition = FifthEdition.flags;
     this.calculateTotals();
 
     if (this.context.step <= Step.FIRST_ROLL) {
@@ -65,6 +68,10 @@ export class AttributesStage extends ChargenStage {
 
     else
       this.context.exp = 0;
+
+    if (FifthEdition.enabled("Metacurrency")) {
+      this.context.exp = 0; // 5e (p.40): no XP for accepting rolled Characteristics, see Oh Fickle Fate
+    }
 
     return data;
   }
@@ -107,6 +114,10 @@ export class AttributesStage extends ChargenStage {
     this.context.meta.fate.base = game.wfrp4e.config.subspecies[species]?.[subspecies]?.fate ?? game.wfrp4e.config.speciesFate[species];
     this.context.meta.resilience.base = game.wfrp4e.config.subspecies[species]?.[subspecies]?.resilience ?? game.wfrp4e.config.speciesRes[species];
     this.context.meta.extra = game.wfrp4e.config.subspecies[species]?.[subspecies]?.extra ?? game.wfrp4e.config.speciesExtra[species];
+    this.context.meta.fortune.base = game.wfrp4e.config.subspecies[species]?.[subspecies]?.fortune ?? game.wfrp4e.config.speciesFortune[species] ?? this.context.meta.fate.base;
+    if (FifthEdition.enabled("Metacurrency")) {
+      this.context.meta.extra = 0; // 5e: Fate and Fortune are fixed by Species, there are no extra points to allot
+    }
 
     this.calculateTotals();
 
@@ -149,6 +160,7 @@ export class AttributesStage extends ChargenStage {
     let resilience = this.context.meta.resilience;
     fate.total = fate.base + fate.allotted;
     resilience.total = resilience.base + resilience.allotted;
+    this.context.meta.fortune.total = this.context.meta.fortune.base;
     this.context.meta.left = this.context.meta.extra - (resilience.allotted + fate.allotted);
   }
 
@@ -289,8 +301,10 @@ export class AttributesStage extends ChargenStage {
     this.data.fate.allotted = this.context.meta.fate.allotted;
     this.data.resilience.base = this.context.meta.resilience.base;
     this.data.resilience.allotted = this.context.meta.resilience.allotted;
+    this.data.fortune = { base: this.context.meta.fortune.base };
     this.data.move = game.wfrp4e.config.speciesMovement[this.data.species];
     this.data.exp.characteristics = this.context.exp;
+    (this.data.random ??= {}).characteristics = this.context.step <= Step.FIRST_ROLL; // kept the first roll as it came (5e Oh Fickle Fate)
     super._updateObject(ev, formData)
   }
 

@@ -1,5 +1,6 @@
 import NameGenWfrp from "../name-gen.js";
 import { ChargenStage } from "./stage";
+import FifthEdition from "../../system/fifth-edition.js";
 
 export class DetailsStage extends ChargenStage {
   journalId = "Compendium.wfrp4e-core.journals.JournalEntry.IQ0PgoJihQltCBUU.JournalEntryPage.Q4C9uANCqPzlRKFD"
@@ -30,6 +31,7 @@ export class DetailsStage extends ChargenStage {
 
   async getData() {
     let data = await super.getData();
+    data.fifthEdition = FifthEdition.flags;
     return data;
   }
 
@@ -60,6 +62,7 @@ export class DetailsStage extends ChargenStage {
     this.data.details.motivation = formData.motivation;
     this.data.details.short = formData.short;
     this.data.details.long = formData.long;
+    this.data.details.party = formData.party; // 5e (p.42): the Party Ambition is chosen at creation
     super._updateObject(ev, formData)
   }
 

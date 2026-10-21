@@ -45,6 +45,12 @@
             <th>{{localize "Fate"}}</th>
             <td>{{preview.fate}}</td>
         </tr>
+        {{#if context.fifthEdition.metacurrency}}
+        <tr>
+            <th>{{localize "Fortune"}}</th>
+            <td>{{preview.fortune}}</td>
+        </tr>
+        {{else}}
         <tr>
             <th>{{localize "Resilience"}}</th>
             <td>{{preview.resilience}}</td>
@@ -53,6 +59,7 @@
             <th>{{localize "Extra"}}</th>
             <td>{{preview.extra}}</td>
         </tr>
+        {{/if}}
         <tr>
             <th>{{localize "Movement"}}</th>
             <td>{{preview.movement}}</td>

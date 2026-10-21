@@ -19,6 +19,10 @@
     {{#if displays.corruption}}
     {{formGroup  fields.settings.fields.autoCalc.fields.corruption value=source.system.settings.autoCalc.corruption rootId=rootId}}
     {{/if}}
+
+    {{#if displays.fortune}}
+    {{formGroup  fields.settings.fields.autoCalc.fields.fortune value=source.system.settings.autoCalc.fortune rootId=rootId}}
+    {{/if}}
     
     {{#if displays.encumbrance}}
     {{formGroup  fields.settings.fields.autoCalc.fields.encumbrance value=source.system.settings.autoCalc.encumbrance rootId=rootId}}

@@ -28,6 +28,48 @@
             }
         }
 
+        // The combat Actions bar, promoted out of the melee list's header where four icon buttons shared a
+        // cell with the list name. It borrows the `.list-header` look so it reads as the tab's own furniture
+        // rather than as the form row it replaces.
+        .combat-actions .list-name {
+            flex: 0 0 auto;
+        }
+
+        // WFRP 5e Momentum (p.168), at the end of that bar where a list's column labels sit, so the bar has
+        // weight at both ends. As a `.form-group` row this was a lone checkbox with its Spend action pinned to
+        // the far side and 335px of parchment in between.
+        .combat-actions .momentum {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            flex: 0 0 auto;
+            margin-left: auto;
+            padding-right: 0.4rem;
+
+            .momentum-toggle {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.4rem;
+                flex: 0 0 auto;
+                white-space: nowrap;
+            }
+
+            // Nothing caps a checkbox's width outside a `.form-group`, so it grows to fill the flex line and
+            // pushes its own label out across the Spend action.
+            input[type="checkbox"] {
+                --checkbox-size: var(--font-size-16);
+                flex: 0 0 auto;
+                width: auto;
+                margin: 0;
+            }
+
+            a {
+                color: var(--color-warm);
+                font-size: var(--font-size-13);
+                white-space: nowrap;
+            }
+        }
+
         .armour-section
         {
             .flexrow {

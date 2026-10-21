@@ -2,6 +2,7 @@ import GenericActions from "../../system/actions.js";
 import WFRP_Utility   from "../../system/utility-wfrp4e";
 import ActorSettings  from "../../apps/actor-settings";
 import MarketWFRP4e   from "../../apps/market-wfrp4e";
+import FifthEdition from "../../system/fifth-edition.js";
 
 export default class BaseWFRP4eActorSheet extends WarhammerActorSheetV2
 {
@@ -92,6 +93,7 @@ export default class BaseWFRP4eActorSheet extends WarhammerActorSheetV2
   async _prepareContext(options)
   {
     let context = await super._prepareContext(options);
+    context.fifthEdition = FifthEdition.flags;
     context.items = foundry.utils.deepClone(this.actor.itemTags);
     let aspects = {
       talents : {}, 

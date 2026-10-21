@@ -1,5 +1,6 @@
 import WFRP_Audio from "./audio-wfrp4e.js";
 import WFRP_Utility from "./utility-wfrp4e.js";
+import FifthEdition from "./fifth-edition.js";
 
 export default class CombatHelpersWFRP {
 
@@ -71,13 +72,17 @@ export default class CombatHelpersWFRP {
         if (!game.user.isUniqueGM)
             return
 
+        // Under the 5e Size toggle a creature with smaller opponents is announced below, per opponent and at both
+        // ratings, so it must not also appear here at its bare Trait rating - it is already in that fragment twice
+        let size = CombatHelpersWFRP.checkSizeFearTerror(combat);
+
         let fearCounters = []
         let terrorCounters = [];
         for (let turn of combat.turns) {
             try {
 
             let fear = turn.actor.has(game.i18n.localize("CHAT.Fear"))
-            if (fear)
+            if (fear && !size.announced.has(turn.id))
                 fearCounters.push({ name: turn.name, value: `@Fear[${fear.specification.value},${turn.name}]` })
 
             let terror = turn.actor.has(game.i18n.localize("CHAT.Terror"))
@@ -98,14 +103,20 @@ export default class CombatHelpersWFRP {
 
         }
 
-        msg += CombatHelpersWFRP.checkSizeFearTerror(combat)
+        msg += size.msg
 
         if (msg)
             await ChatMessage.create(game.wfrp4e.utility.chatDataSetup(msg, "gmroll", false, {alias: "Fear & Terror"}))
     }
 
+    /**
+     * @returns {{msg: string, announced: Set<string>}} the chat fragment, and the combatants whose Fear it has
+     *   already announced - under the 5e Size toggle it announces both the Size-inflated rating and the bare Trait
+     *   rating, each naming the opponents it applies to, so checkFearTerror must not announce them a second time
+     */
     static checkSizeFearTerror(combat) {
         let sizeMap = {}
+        let announced = new Set()
         let msg = ""
         for (let turn of combat.turns) 
         {
@@ -122,6 +133,9 @@ export default class CombatHelpersWFRP {
                 5: [],
                 6: []
             }
+            // The opponents this loop considered and did not put in smallerBy. Only the 5e branch reads it, to name
+            // the combatants that Size does not frighten but a printed Fear Trait still does.
+            let equalOrLarger = []
 
             for (let otherCombatantId in sizeMap) {
                 let otherCombatant = combat.combatants.get(otherCombatantId);
@@ -136,6 +150,10 @@ export default class CombatHelpersWFRP {
                     {
                         smallerBy[size - sizeMap[otherCombatantId]].push(otherCombatant.name)
                     }
+                    else
+                    {
+                        equalOrLarger.push(otherCombatant.name)
+                    }
                 }
                 catch (e) {
 
@@ -143,6 +161,36 @@ export default class CombatHelpersWFRP {
             }
 
             let actor = combatant.name;
+
+            if (FifthEdition.enabled("Size"))
+            {
+                // 5e (p.360): "Aggressive creatures cause Fear in those smaller than them" - no Terror, and the
+                // rating is not the number of steps. Being larger contributes a base 1 on top of the creature's own
+                // Fear Trait, which is how the Frightening Talent reads: "the Fear Trait with a rating of 1, or 2 if
+                // you are Large (see page 360)" (p.120) - its own 1, plus 1 for standing a step above its enemies.
+                // Filip ruled on this 2026-09-06, keeping 1 + own Trait over a flat Fear 1 and over combining the
+                // two by p.183's "highest": do not "correct" the rating here.
+                //
+                // Both ratings are announced per opponent rather than per combatant. Being larger frightens only
+                // those who are smaller, while a printed Fear Trait frightens everyone, so an equal or larger
+                // opponent faces the bare Trait rating - which is what checkFearTerror would otherwise announce,
+                // and used to lose entirely the moment this branch claimed the combatant.
+                let smaller = Object.values(smallerBy).flat();
+                if (smaller.length)
+                {
+                    let trait = combatant.actor?.has(game.i18n.localize("CHAT.Fear"));
+                    let rating = 1 + (Number(trait?.specification?.value) || 0);
+                    msg += game.i18n.format("CHAT.CausesFear", { fear: `@Fear[${rating}, ${actor}]`, actor: actor, target: smaller.join(", ")});
+                    if (trait && equalOrLarger.length)
+                    {
+                        msg += game.i18n.format("CHAT.CausesFear", { fear: `@Fear[${trait.specification.value}, ${actor}]`, actor: actor, target: equalOrLarger.join(", ")});
+                    }
+                    msg += "<br>"
+                    announced.add(id)
+                }
+                continue
+            }
+
             if (smallerBy[1].length)
                 msg += game.i18n.format("CHAT.CausesFear", { fear: `@Fear[${1}, ${actor}]`, actor: actor, target: smallerBy[1].join(", ")});
 
@@ -168,12 +216,15 @@ export default class CombatHelpersWFRP {
         if (msg) {
             msg = `<br><h2>${game.i18n.localize("Size")}</h2>${msg}`
         }
-        return msg
+        return { msg, announced }
     }
 
     static async checkCorruption(combat) {
         if (!game.user.isUniqueGM)
             return
+
+        if (FifthEdition.enabled("Corruption"))
+            return // 5e (p.187): a single Corruption Test at the end of the session, not after every exposure
 
         let corruptionCounters = []
 

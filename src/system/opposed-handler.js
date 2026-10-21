@@ -1,6 +1,7 @@
 import WFRP_Utility from "./utility-wfrp4e.js";
 import { OpposedTestMessage } from "../model/message/opposed-result.js";
 import EditionManager from "../apps/edition-manager.js";
+import Engagements from "./engagements.js";
 
 /**
  * Represents an opposed test. This object is stored in the "targeting" messages and is used as a central manager of a single opposed test.
@@ -93,6 +94,12 @@ export default class OpposedHandler {
   async startOppose(targetToken) {
     this.data.targetSpeakerData = targetToken.actor.speakerData(targetToken)
     await this.renderMessage();
+    // Starting the attack engages both tokens even on a miss or an unopposed
+    // attack. Defences, edits and rerolls do not create a new attack.
+    // An optional automation failure must not prevent the defender answering.
+    await Engagements.attack(this.attackerTest, targetToken).catch(error => {
+      console.error("WFRP could not record the engagement", error);
+    });
     await this._addOpposeFlagsToDefender(targetToken);
     return this.message?.id
   }

@@ -30,11 +30,27 @@
         }
     }
 
+    // WFRP 5e Ambitions (p.41-42): award buttons beside the Ambition fields
+    .form-fields .ambition-award {
+        flex: 0 0 auto;
+        padding: 0 0.3rem;
+    }
+
     .attribute-box {
+        // Refresh Fortune, spend it on a Condition, Rest & Recover: actions sitting beside a label, not with it.
+        // Left at the label's own size they carry as much weight as the word they follow.
+        .label a i {
+            font-size: var(--font-size-12);
+        }
+
         &.metacurrencies {
             flex: 2;
 
-            div:nth-child(-n + 4) {
+            // Carries the row-1 rule across the two `.field` cells; the labels beside them
+            // already get their border from the lib. Under 5e the box is `top-label` with two
+            // values, so its first four children are every child — the rule would draw a second
+            // line along the box's own bottom edge.
+            &:not(.top-label) div:nth-child(-n + 4) {
                 border-bottom: 1px solid var(--attribute-border);
             }
 

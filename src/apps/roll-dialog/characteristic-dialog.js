@@ -1,5 +1,6 @@
 import CharacteristicTest from "../../system/rolls/characteristic-test";
 import RollDialog from "./roll-dialog";
+import FifthEdition from "../../system/fifth-edition.js";
 
 export default class CharacteristicDialog extends RollDialog {
     chatTemplate = "systems/wfrp4e/templates/chat/roll/characteristic-card.hbs"
@@ -82,14 +83,37 @@ export default class CharacteristicDialog extends RollDialog {
         super.computeFields();
 
         if (this.context.dodge && this.actor.isMounted) {
-            this.fields.modifier -= 20
-            this.tooltips.add("modifier", -20, game.i18n.localize("EFFECT.DodgeMount"));
+            if (FifthEdition.enabled("Modifiers")) {
+                // 5e (p.168): riding gives Disadvantage on Dodge Tests, and Trick Rider removes it outright.
+                // 4e names the Talent "Trick Riding", 5e "Trick Rider" - accept either, since the Talent comes from
+                // whichever content module the world uses.
+                if (!["NAME.Trickriding", "FIFTHED.TrickRider"].some(key => this.actor.has(game.i18n.localize(key), "talent"))) {
+                    this.fields.disSources++;
+                    this.tooltips.add("disSources", 1, game.i18n.localize("EFFECT.DodgeMount"));
+                }
+            }
+            else {
+                this.fields.modifier -= 20
+                this.tooltips.add("modifier", -20, game.i18n.localize("EFFECT.DodgeMount"));
+            }
         }
     }
 
 
     _computeDefending(attacker)
     {
+        // 5e (p.306): an equipped shield gives +1 SL when opposing with Dodge or Melee (not stacking with Defensive)
+        if (FifthEdition.enabled("Modifiers") && this.actor.system.status?.armour?.shield > 0)
+        {
+            let dodge = this.context.dodge || !!this.skill?.name?.startsWith(game.i18n.localize("NAME.Dodge"));
+            let melee = this.item?.attackType == "melee" || !!this.skill?.name?.startsWith(game.i18n.localize("NAME.Melee"));
+            if ((dodge || melee) && !this.item?.properties?.qualities?.defensive)
+            {
+                this.fields.slBonus += 1;
+                this.tooltips.add("slBonus", 1, game.i18n.localize("FIFTHED.ShieldDefence"));
+            }
+        }
+
         if (attacker.test.item.properties?.flaws.slow) {
             if (!game.settings.get("wfrp4e", "homebrew").mooQualities || this.context.dodge) 
             {

@@ -53,6 +53,7 @@ constructor(document, options)
             context.displays.wounds = true;
             context.displays.critwounds = true;
             context.displays.corruption = true;
+            context.displays.fortune = true;
             context.displays.encumbrance = true;
             context.displays.hitloc = true;
             context.displays.equipPoints = true;

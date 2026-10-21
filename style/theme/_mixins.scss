@@ -471,9 +471,66 @@
     background: #080808;
 }
 
+// Foundry draws checkboxes with `appearance: none` and FontAwesome glyphs in the pseudo-elements:
+// a *solid* square (\f0c8) for the unchecked state, and for the checked one an absolutely
+// positioned tick laid over a duotone square. Solid glyphs read as heavy filled blocks — a dark
+// slab in the dark theme, a chunky grey one on parchment — far too much weight next to the
+// hairline `far fa-circle` affordances the sheets use elsewhere, and stacking two glyphs leaves
+// the tick sized for its own em box rather than for the square it sits in.
+//
+// So use one regular-weight outline glyph per state instead: `far fa-square` and
+// `far fa-square-check`, whose tick is proportioned to the box by design. That means undoing
+// core's overlay — `::after` is neutralised and `::before` put back in flow, since it is now the
+// glyph that gives the input its size.
+//
+// A `.circle` variant is offered here rather than left to consumers so that the shape override
+// stays inside the same theme scope as the font family it depends on: with `no-theme` set, a
+// `content` rule from outside this mixin would still apply while the family would not, leaving a
+// raw codepoint in the body font. Don't route the glyphs through custom properties either —
+// escapes inside custom-property values are fragile.
+@mixin wfrp-checkbox {
+        // The colours are read as fallbacks rather than declared here, so that a container can
+        // override them (the roll dialog does). Declaring them on the input itself would
+        // out-specify any ancestor's value.
+        input[type="checkbox"] {
+            --checkbox-size: var(--font-size-16);
+
+            &::before {
+                content: "\f0c8";
+                font-family: var(--font-awesome);
+                font-weight: 400;
+                color: var(--wfrp-checkbox-box, var(--color-faded));
+            }
+
+            &:checked::before {
+                content: "\f14a";
+                position: static;
+                color: var(--wfrp-checkbox-tick, var(--color-warm));
+            }
+
+            &:checked::after {
+                content: none;
+            }
+
+            // Matches the tick the sheets' list rows use for their own booleans
+            &.circle::before {
+                content: "\f111";
+            }
+
+            &.circle:checked::before {
+                content: "\f058";
+            }
+
+            &:focus {
+                border: none;
+            }
+        }
+}
+
 @mixin wfrp-form {
         .form-group {
             @include wfrp-form-input();
+            @include wfrp-checkbox();
             gap: 0px;
             label {
                 color: #d6d6d6;

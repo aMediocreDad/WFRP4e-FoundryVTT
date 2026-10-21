@@ -21,6 +21,12 @@
             label {
                 text-align: center;
             }
+
+            // The 5e "I Will Not Fail!" row pairs a checkbox with the chosen d100 result. It sits
+            // outside `.dialog-base`, so nothing caps its width the way the modifier column is.
+            input[name="fateRoll"] {
+                flex: 0 0 4rem;
+            }
         }
 
         div[data-application-part="default"],
@@ -60,6 +66,39 @@
                 label {
                     margin: 5px 5px;
                 }
+            }
+        }
+
+        // Adding a modifier by hand. Lives in the `specific` column, where the 3rem cap on `.dialog-base` fields
+        // does not apply, so the value, its source and the button share one row.
+        .manual-modifier-entry .form-fields {
+            gap: 0.3rem;
+            flex-wrap: wrap; // The chip list is the second line of this column
+
+            input[type="number"] {
+                flex: 0 0 2.5rem;
+            }
+
+            a {
+                flex: 0 0 auto;
+            }
+        }
+
+        .manual-modifier-list {
+            display: flex;
+            flex: 1 0 100%;
+            flex-wrap: wrap;
+            gap: 0.3rem;
+
+            .manual-modifier {
+                display: flex;
+                align-items: center;
+                gap: 0.3rem;
+                padding: 0px 0.4rem;
+                border: 1px solid var(--color-element-border);
+                background: var(--color-faded-bg);
+                font-size: var(--font-size-12);
+                white-space: nowrap;
             }
         }
     }

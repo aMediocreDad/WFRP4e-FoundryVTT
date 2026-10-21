@@ -165,6 +165,9 @@ export class CharacterStatusModel extends StandardStatusModel {
         let schema = super.defineSchema();
         schema.fortune = new fields.SchemaField({
             value: new fields.NumberField({ initial: 0, min: 0}),
+            // Derived every prepare from Species or Fate, like the Wounds and Corruption maxima, unless the actor
+            // opts out of the calculation - see CharacterModel.computeFortune
+            max: new fields.NumberField({ initial: 0, min: 0}),
         });
         schema.fate = new fields.SchemaField({
             value: new fields.NumberField({ initial: 0, min: 0}),

@@ -1,4 +1,5 @@
 import { ChargenStage } from "./stage";
+import FifthEdition from "../../system/fifth-edition.js";
 
 export class CareerStage extends ChargenStage {
   journalId = "Compendium.wfrp4e-core.journals.JournalEntry.IQ0PgoJihQltCBUU.JournalEntryPage.bS2sxusEp1FEqmRk"
@@ -51,6 +52,9 @@ export class CareerStage extends ChargenStage {
       this.context.exp = 0;
       await this.addCareerChoice();
     }
+    if (FifthEdition.enabled("Metacurrency")) {
+      this.context.exp = 0; // 5e (p.36): random careers pay in Trappings from career level 2, not XP
+    }
   }
 
   // Career selected, move on to the next step
@@ -67,13 +71,63 @@ export class CareerStage extends ChargenStage {
     this.render(true);
   }
 
-  _updateObject(event, formData) {
+  async _updateObject(event, formData) {
     this.data.items.career = this.context.career.toObject();
     this.data.exp.career = this.context.exp;
 
     this.data.items.career.system.current.value = true;
+    await this._chooseFifthEditionTrappings();
     super._updateObject(event, formData)
 
+  }
+
+  /**
+   * 5e (p.36): keeping the first random career grants two Trappings from the career's second level, keeping one of the first
+   * three grants one, and each ticks a box on the Career Advancement Tracker. Rolled careers only; a chosen or dropped career gets none.
+   */
+  async _chooseFifthEditionTrappings() {
+    (this.data.random ??= {}).career = this.context.step == 1;
+    this.data.fifthEd = { trappings: [], ticks: 0 };
+    if (!FifthEdition.enabled("Metacurrency") || this.context.step < 1 || this.context.step > 2) {
+      return;
+    }
+    let allowed = this.context.step == 1 ? 2 : 1;
+    let group = this.context.career.system.careergroup.value;
+    let level2 = (await this.careers).find(c => c.system.careergroup.value == group && c.system.level.value == 2);
+    if (!level2) {
+      ui.notifications.warn(game.i18n.format("CHARGEN.FifthEd.NoLevel2", { career: group }));
+      return;
+    }
+    // The earned count is exact, not a ceiling - but only as far as the Career can supply it. A level 2 Career
+    // listing fewer Trappings than were earned gives up what it has and says so, rather than asking for what does
+    // not exist: the same "warn, do not dead-end" path as a Career Group with no level 2 at all.
+    let required = Math.min(allowed, level2.system.trappings.length);
+    if (required < allowed) {
+      ui.notifications.warn(game.i18n.format("CHARGEN.FifthEd.FewerTrappings", { career: level2.name, num: level2.system.trappings.length, allowed }));
+    }
+    if (!required) {
+      return;
+    }
+    let options = level2.system.trappings.map((name, i) => `<label class="form-group"><input type="checkbox" name="trapping" value="${i}"> ${name}</label>`).join("");
+    let chosen;
+    // Asked again until exactly the earned number is chosen. Dismissing the dialog must not finish a character short
+    // (p.36), and the Career always lists at least `required` Trappings, so this can always be satisfied.
+    while (chosen?.length !== required) {
+      if (chosen) {
+        ui.notifications.warn(game.i18n.format("CHARGEN.FifthEd.TrappingsExact", { num: required }));
+      }
+      chosen = await foundry.applications.api.DialogV2.prompt({
+        window: { title: game.i18n.localize("CHARGEN.FifthEd.ChooseTrappingsTitle") },
+        content: `<p>${game.i18n.format("CHARGEN.FifthEd.ChooseTrappings", { num: required, career: level2.name })}</p>${options}`,
+        ok: {
+          label: game.i18n.localize("Ok"),
+          callback: (ev, button) => Array.from(button.form.querySelectorAll("input[name='trapping']:checked")).map(i => level2.system.trappings[Number(i.value)])
+        },
+        rejectClose: false
+      }) ?? [];
+    }
+    this.data.fifthEd = { trappings: chosen, ticks: chosen.length };
+    this.updateMessage("Chosen", { chosen: chosen.join(", ") });
   }
 
   async getData() {

@@ -1,4 +1,5 @@
 import Advancement from "../../system/advancement";
+import FifthEdition from "../../system/fifth-edition.js";
 import WFRP_Utility from "../../system/utility-wfrp4e";
 import BaseWFRP4eActorSheet from "./base";
 
@@ -23,6 +24,9 @@ export default class StandardWFRP4eActorSheet extends BaseWFRP4eActorSheet
       stepAilment: {buttons: [0, 2], handler: this._onStepAilment},
       chooseLore: this._onChooseLore,
       stepChannelling: {buttons: [0, 2], handler: this._onStepChannelling},
+      toggleMomentum: this._onToggleMomentum,
+      spendMomentum: this._onSpendMomentum,
+      disengage: this._onDisengage,
     },
   }
 
@@ -214,6 +218,45 @@ export default class StandardWFRP4eActorSheet extends BaseWFRP4eActorSheet
     this.element.querySelectorAll("[data-action='editCharacteristic']").forEach(e => e.addEventListener("change", this.constructor._onEditCharacteristic.bind(this)));
     this.element.querySelector("[data-action='editSpecies']")?.addEventListener("change", this.constructor._onEditSpecies.bind(this));
     this.element.querySelectorAll("[data-action='addSkill']").forEach(e => e.addEventListener("change", this.constructor._onAddSkill.bind(this)));
+  }
+
+  /**
+   * 5e (p.168): Momentum is binary, so the counter is rendered as a state pill. Flip what the actor has.
+   */
+  static _onToggleMomentum() {
+    return this.actor.setAdvantage(this.actor.status?.advantage?.value > 0 ? 0 : 1);
+  }
+
+  /**
+   * 5e (p.167): lose Momentum to attack with a second weapon, or for another effect. Disengaging is also a Momentum
+   * spend but has its own Action beside the melee attacks, since it is one of three ways out of an Engagement.
+   */
+  static async _onSpendMomentum(ev) {
+    if (!(this.actor.status?.advantage?.value > 0)) {
+      return ui.notifications.warn("FIFTHED.NoMomentum", { localize: true });
+    }
+    const reasons = { offhand: "FIFTHED.SpendOffhand", other: "FIFTHED.SpendOther" };
+    let reason = await foundry.applications.api.DialogV2.wait({
+      window: { title: game.i18n.localize("FIFTHED.SpendMomentum") },
+      content: `<p>${game.i18n.localize("FIFTHED.SpendMomentumPrompt")}</p>`,
+      buttons: Object.entries(reasons).map(([action, label], i) => ({ action, label: game.i18n.localize(label), default: i == 0 })),
+      rejectClose: false
+    });
+    if (!reason) {
+      return;
+    }
+    await this.actor.setAdvantage(0);
+    let text = game.i18n.format("FIFTHED.SpendMomentumText", { name: this.actor.prototypeToken?.name || this.actor.name, reason: game.i18n.localize(reasons[reason] || reasons.other) });
+    ChatMessage.create(WFRP_Utility.chatDataSetup(text));
+  }
+
+  /**
+   * 5e (p.163): Disengaging, either by losing Momentum or by testing for it. Sits beside the melee attacks rather
+   * than on the Momentum row because only one of its two routes spends Momentum. Fleeing, the third way out, is a
+   * Move rather than an Action and lives on the combat tracker.
+   */
+  static _onDisengage(ev) {
+    return FifthEdition.disengage(this.actor);
   }
 
   static _onEditCharacteristic(ev)

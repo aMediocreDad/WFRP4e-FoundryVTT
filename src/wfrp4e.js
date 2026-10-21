@@ -118,6 +118,9 @@ import { MagicUseMessageModel5e } from "./model/message/magic5e.js";
 import WFRP4E from "./system/config-wfrp4e.js";
 import { CareerPathModel } from "./model/item/careerPath.js";
 import CareerPathSheet from "./sheets/item/career-path-sheet.js";
+import FifthEdition from "./system/fifth-edition.js";
+import OpposedTest from "./system/opposed-test.js";
+import Engagements from "./system/engagements.js";
 
 /* -------------------------------------------- */
 /*  Foundry VTT Initialization                  */
@@ -234,6 +237,8 @@ Hooks.once("init", function () {
       ItemWFRP4e,
       GenericAspectModel
     },
+    fifthEdition: FifthEdition,
+    engagements: Engagements,
     rolls : {
       TestWFRP,
       CharacteristicTest,
@@ -263,6 +268,7 @@ Hooks.once("init", function () {
     names: NameGenWfrp,
     migration: Migration,
     opposedHandler: OpposedHandler,
+    opposedTest: OpposedTest,
     tags : new TagManager(),
     trade : new TradeManager()
   }

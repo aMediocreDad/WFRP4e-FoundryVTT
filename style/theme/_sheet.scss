@@ -205,19 +205,21 @@
                 color: var(--color-grey1);
             }
 
+            // The sheet is parchment under either Foundry theme, but an anchor here inherits
+            // core's theme-dependent text colour and goes invisible in the dark one. Every other
+            // affordance on the sheet is pinned (see `.attribute-box .field a` below); these were
+            // missed because nothing put an anchor in a `.form-fields` until now.
+            .form-fields a {
+                color: var(--color-grey1);
+            }
+
             .hint {
                 color: var(--color-grey1);
                 border-color: var(--color-faded);
             }
         }
 
-        input[type="checkbox"]
-        {
-            --checkbox-checked-color: var(--color-warm);
-            &:focus {
-                border: none;
-            }
-        }
+        @include wfrp-checkbox();
 
         section.tab[data-tab=effects]
         {

@@ -577,8 +577,10 @@ export default class WFRP_Utility {
       else if (clickText.trim() == game.i18n.localize("ROLL.TotalPower"))
         html = game.wfrp4e.tables.restrictedCriticalCastMenu();
 
-      // Not really a table but whatever
-      else if (target.dataset.table == "misfire") {
+      // Not really a table but whatever. 5e (p.165) puts a real table behind this key: the link WeaponTest.computeTables
+      // posts carries no `data-damage` at all, so it falls through to the generic table roll below, while any card the
+      // 4e path posted always carries the attribute and keeps its inline text whichever way the toggle is set later.
+      else if (target.dataset.table == "misfire" && target.dataset.damage !== undefined) {
         let damage = target.dataset.damage
         html = game.i18n.format("ROLL.Misfire", { damage: damage });
       }

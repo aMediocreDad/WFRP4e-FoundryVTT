@@ -450,7 +450,9 @@ WFRP4E.weaponQualities = {
     "hack": "PROPERTY.Hack",
     "impact": "PROPERTY.Impact",
     "impale": "PROPERTY.Impale",
+    "inflict": "PROPERTY.Inflict", // WFRP 5e (p.304), behaviour gated by the fifthEdQualities toggle
     "magical": "PROPERTY.Magical",
+    "parry": "PROPERTY.Parry", // WFRP 5e (p.304), behaviour gated by the fifthEdQualities toggle
     "penetrating": "PROPERTY.Penetrating",
     "pistol": "PROPERTY.Pistol",
     "precise": "PROPERTY.Precise",
@@ -469,6 +471,7 @@ WFRP4E.weaponFlaws = {
     "reload": "PROPERTY.Reload",
     "slow": "PROPERTY.Slow",
     "tiring": "PROPERTY.Tiring",
+    "unbalanced": "PROPERTY.Unbalanced", // -1 SL when defending, applied by AttackDialog._computeDefending
     "undamaging": "PROPERTY.Undamaging"
 };
 
@@ -505,7 +508,9 @@ WFRP4E.propertyHasValue = {
     "hack": false,
     "impact": false,
     "impale": false,
+    "inflict": true,
     "magical" : false,
+    "parry": false,
     "penetrating": false,
     "pistol": false,
     "precise": false,
@@ -520,6 +525,7 @@ WFRP4E.propertyHasValue = {
     "reload": true,
     "slow": false,
     "tiring": false,
+    "unbalanced": false,
     "undamaging": false,
     "flexible": false,
     "impenetrable": false,
@@ -1070,6 +1076,7 @@ WFRP4E.speciesTalentReplacement = {}
 WFRP4E.speciesMovement = {}
 WFRP4E.speciesFate = {}
 WFRP4E.speciesRes = {}
+WFRP4E.speciesFortune = {}
 WFRP4E.speciesExtra = {}
 WFRP4E.speciesAge = {}
 WFRP4E.speciesHeight = {}
@@ -2772,6 +2779,8 @@ WFRP4E.scriptTriggers = {
     "computeEncumbrance" : "Compute Encumbrance",
     "preWoundCalc" : "Pre-Wound Calculation",
     "woundCalc" : "Wound Calculation",
+    "fortuneCalc" : "Fortune Calculation",
+    "fortuneRefresh" : "Fortune Refresh",
     "calculateSize" : "Size Calculation",
     "preAPCalc" : "Pre-Armour Calculation",
     "APCalc" : "Armour Calculation",
@@ -2828,6 +2837,7 @@ WFRP4E.syncTriggers = [
     "prepareData",
     "preWoundCalc",
     "woundCalc",
+    "fortuneCalc",
     "calculateSize",
     "preAPCalc",
     "APCalc",

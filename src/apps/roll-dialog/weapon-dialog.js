@@ -2,6 +2,7 @@ import WeaponTest from "../../system/rolls/weapon-test";
 import AttackDialog from "./attack-dialog";
 import CharacteristicDialog from "./characteristic-dialog";
 import SkillDialog from "./skill-dialog";
+import FifthEdition from "../../system/fifth-edition.js";
 
 export default class WeaponDialog extends AttackDialog {
 
@@ -133,13 +134,27 @@ export default class WeaponDialog extends AttackDialog {
       ui.notifications.error("ERROR.CannotUseArm", {localize : true})
     }
 
-    if (this.item.offhand.value && !this.item.twohanded.value && !(this.item.weaponGroup.value == "parry" && this.item.properties.qualities.defensive)) 
+    // 5e Parry quality (p.304): defending with a Parry weapon ignores the off-hand penalty
+    let parryDefence = FifthEdition.enabled("Qualities") && this.item.properties.qualities.parry && this.actor.attacker;
+    if (this.item.offhand.value && !this.item.twohanded.value && !(this.item.weaponGroup.value == "parry" && this.item.properties.qualities.defensive) && !parryDefence) 
     {
       this.computeAmbidextrous()
     }
   }
 
   computeAmbidextrous() {
+    if (FifthEdition.enabled("Modifiers"))
+    {
+      // 5e (p.166): the off-hand penalty is -2 SL, and Ambidextrous (p.114) removes it outright rather than
+      // shaving it down a rank at a time - 5e Talents have no ranks
+      if (this.actor.flags.ambi)
+      {
+        return;
+      }
+      this.fields.slBonus += -2;
+      this.tooltips.add("slBonus", -2, game.i18n.localize("SHEET.Offhand"));
+      return;
+    }
     this.fields.modifier += -20
     this.tooltips.add("modifier", -20, game.i18n.localize("SHEET.Offhand"))
 
@@ -176,6 +191,18 @@ export default class WeaponDialog extends AttackDialog {
         this.context.rangeBand = band;
         break;
       }
+    }
+
+    if (FifthEdition.enabled("Modifiers"))
+    {
+      // 5e (p.166): range bands modify SL. Shooting while Engaged is already blocked by the Engaged Condition unless the weapon is a Pistol.
+      let rangeSL = FifthEdition.RANGE_SL[currentBand] || 0;
+      if (rangeSL)
+      {
+        this.fields.slBonus += rangeSL;
+        this.tooltips.add("slBonus", rangeSL, `${game.i18n.localize("Range")} - ${weapon.range.bands[currentBand]?.label}`);
+      }
+      return;
     }
 
     let engagedEffect = this.actor.statuses.has("engaged")

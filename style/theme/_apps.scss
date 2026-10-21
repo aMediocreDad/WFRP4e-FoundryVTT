@@ -23,6 +23,9 @@ body:not(.no-theme):not(.theme-light) {
             @include wfrp-form;
 
             --modifier-bg : var(--color-warm);
+            // The parchment default tick (--color-warm, near-black red) would vanish against the
+            // dialog's ground; the box stays --color-faded so it matches the inputs' own borders.
+            --wfrp-checkbox-tick : var(--color-cream);
 
             .dialog-modifiers {
                 label {

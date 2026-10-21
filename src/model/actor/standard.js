@@ -4,6 +4,7 @@ import { StandardStatusModel } from "./components/status";
 import { StandardDetailsModel } from "./components/details";
 import WFRP_Utility from "../../system/utility-wfrp4e";
 import Advancement from "../../system/advancement";
+import FifthEdition from "../../system/fifth-edition.js";
 let fields = foundry.data.fields;
 
 /**
@@ -33,6 +34,7 @@ export class StandardActorModel extends BaseActorModel {
                 wounds: new fields.BooleanField({initial : true}),
                 criticals: new fields.BooleanField({initial : true}),
                 corruption: new fields.BooleanField({initial : true}),
+                fortune: new fields.BooleanField({initial : true}),
                 encumbrance: new fields.BooleanField({initial : true}),
                 size: new fields.BooleanField({initial : true})
             })
@@ -222,6 +224,12 @@ export class StandardActorModel extends BaseActorModel {
     }
 
     computeAdvantage() {
+        if (FifthEdition.enabled("Momentum")) {
+            // 5e (p.168): you either have Momentum or you don't
+            this.status.advantage.max = 1;
+            this.status.advantage.value = Math.clamp(this.status.advantage.value, 0, 1);
+            return;
+        }
         if (!game.settings.get("wfrp4e", "useGroupAdvantage")) {
             if (game.settings.get("wfrp4e", "capAdvantageIB")) {
                 this.status.advantage.max = this.characteristics.i.bonus
@@ -262,7 +270,7 @@ export class StandardActorModel extends BaseActorModel {
         this.runScripts("calculateSize", args)
 
         // If the size has been changed since the last known value, update the value 
-        this.details.size.value = args.size || "avg"
+        this.details.size.value = FifthEdition.mapSize(args.size || "avg") // 5e (p.360): five Size steps, Halflings are Average
     }
 
     computeEncumbranceMax() {
@@ -429,6 +437,14 @@ export class StandardActorModel extends BaseActorModel {
                     maxAdvantage = this.characteristics.i.bonus;
                 else
                     maxAdvantage = game.settings.get("wfrp4e", "advantagemax");
+                if (FifthEdition.enabled("Momentum"))
+                    maxAdvantage = 1;
+
+                if (FifthEdition.blocksMomentum(this.parent) && data.system.status.advantage.value > this.status.advantage.value) {
+                    // 5e (p.183): you may not gain Momentum while subject to Fear
+                    data.system.status.advantage.value = this.status.advantage.value;
+                    ui.notifications.warn("FIFTHED.MomentumBlockedFear", { localize: true });
+                }
 
                 if (data.system.status.advantage.value > maxAdvantage) {
                     data.system.status.advantage.value = this.status.advantage.max;

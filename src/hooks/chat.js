@@ -14,15 +14,19 @@ export default function() {
     // Hide test data from players (35 vs 50) so they don't know the enemy stats
     if (game.settings.get("wfrp4e", "hideTestData") && !game.user.isGM && html.querySelector(".chat-card")?.dataset.hide === "true") {
       html.querySelector(".hide-option")?.remove();
+      html.querySelector(".test-breakdown")?.remove();
+      // Saved cards from before the explicit breakdown control used the title.
+      html.querySelector(".test-title")?.removeAttribute("data-tooltip");
     }
     // Hide chat card edit buttons from non-gms
     if (!game.user.isGM) {
       html.querySelector(".chat-button-gm")?.remove();
       // Hide these if actor is not owned by the player
-      if (!app.speaker.actor || (app.speaker.actor && !game.actors.get(app.speaker.actor).isOwner))
+      if (!game.actors.get(app.speaker.actor)?.isOwner)
       {
         html.querySelector(".chat-button-player")?.remove();
         html.querySelector(".test-breakdown")?.remove();
+        html.querySelector(".test-title")?.removeAttribute("data-tooltip");
         html.querySelector(".damage-breakdown")?.remove();
         html.querySelector(".hide-spellcn")?.remove();
       }

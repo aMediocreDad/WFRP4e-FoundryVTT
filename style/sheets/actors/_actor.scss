@@ -153,18 +153,25 @@
             th {
                 line-height: 1.2rem;
             }
+            // The career advance marker sits inline after the label, on its baseline and at its size, the way the
+            // Skills list does: there it is a static sibling of the name, inheriting both. Pinned absolutely at a
+            // font-size of its own it matched neither, and on `top: -50%` the table's top border cut it in half.
             th div {
-                position: relative;
-                .advancement-indicator {
-                    position: absolute;
-                    top: -30%;
-                    left: 80%;
-                    font-size: var(--font-size-14);
-                }
+                display: flex;
+                align-items: baseline;
+                justify-content: center;
+                gap: 0.25rem;
             }
         }
     }
 
+
+    // The tick marking a finished career advance is a fallback glyph - no Caslon face here carries U+2713 - and it
+    // comes in at cap height: 12px of ink against the plus's 7 in the 16px header, 11 against 7 in the 14px lists.
+    // Sized relative to whatever context it lands in, so both the header and the lists get the same proportion.
+    .advancement-indicator.complete {
+        font-size: 0.75em;
+    }
 
     .attribute-row {
         gap: 5px;

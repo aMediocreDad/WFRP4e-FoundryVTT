@@ -1,4 +1,5 @@
 import TestWFRP from "./test-wfrp4e.js"
+import FifthEdition from "../fifth-edition.js";
 
 export default class ChannelTest extends TestWFRP {
 
@@ -108,6 +109,15 @@ export default class ChannelTest extends TestWFRP {
           if (game.settings.get("wfrp4e", "useWoMChannelling")) // Fumble is only minor when using WoM Channelling
           {
             miscastCounter += 1
+            if (FifthEdition.enabled("Magic"))
+            {
+              // 5e (p.236): lose 1d10 SL from the pool, then +10 on the Minor Miscast roll for each SL lost
+              let lost = this.preData.channelSLLost ?? (await new Roll("1d10").roll()).total;
+              this.preData.channelSLLost = lost;
+              this.result.channelSLLost = lost;
+              this.result.miscastModifier = lost * 10;
+              this.result.other.push(game.i18n.format("FIFTHED.ChannelFumble", { lost, modifier: lost * 10 }));
+            }
           }
           else 
           {
@@ -138,6 +148,7 @@ export default class ChannelTest extends TestWFRP {
     }
 
     miscastCounter += this._checkInfluences() || 0
+    miscastCounter = this._applyInfluences5e(miscastCounter);
     this._handleMiscasts(miscastCounter)
     this.result.tooltips.miscast = "<ul style='text-align: left'>" + this.result.tooltips.miscast.map(t => `<li>${t}</li>`).join("") + "</ul>";
   }
@@ -158,7 +169,8 @@ export default class ChannelTest extends TestWFRP {
       this.result.tables.miscast = {
         label : this.result.minormis,
         class : "fumble-roll",
-        key : "minormis"
+        key : "minormis",
+        modifier : this.result.miscastModifier || 0
       }
     }
     if (this.result.nullminormis)
@@ -176,6 +188,7 @@ export default class ChannelTest extends TestWFRP {
         label : this.result.majormis,
         class : "fumble-roll",
         key : "majormis",
+        modifier : this.result.miscastModifier || 0
       }
     }
     if (this.result.nullmajormis)
@@ -217,7 +230,7 @@ export default class ChannelTest extends TestWFRP {
 
   _checkInfluences()
   {
-    if (!this.preData.malignantInfluence) 
+    if (!this.preData.malignantInfluence || FifthEdition.enabled("Magic")) // 5e influences are handled by _applyInfluences5e
     {
       return 0
     }
@@ -281,6 +294,11 @@ export default class ChannelTest extends TestWFRP {
     // "SL < 0" is used over "SL <= 0" since if previous rule isn't True SL 0 resolves no channel progress
     if (Number(SL) < 0 && game.settings.get("wfrp4e", "homebrew").channelingNegativeSLTests)
       SL = 0;
+
+    if (this.result.channelSLLost)
+    {
+      SL = -this.result.channelSLLost; // 5e fumble (p.236): the pool loses 1d10 SL
+    }
 
     // // If channelling test was edited, make sure to adjust the SL accordingly
     // if (this.context.previousResult?.previousChannellingSL > 0)

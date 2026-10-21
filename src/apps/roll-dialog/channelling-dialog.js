@@ -1,5 +1,6 @@
 import ChannelTest from "../../system/rolls/channel-test";
 import SkillDialog from "./skill-dialog";
+import FifthEdition from "../../system/fifth-edition.js";
 
 export default class ChannellingDialog extends SkillDialog {
 
@@ -122,6 +123,15 @@ export default class ChannellingDialog extends SkillDialog {
         else 
         {
             return 0;
+        }
+    }
+
+    computeFields()
+    {
+        super.computeFields();
+        if (FifthEdition.enabled("ArmourWinds"))
+        {
+            this._computeArmourWinds(this.spell?.system.lore.value);
         }
     }
 

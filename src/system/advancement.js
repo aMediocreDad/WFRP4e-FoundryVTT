@@ -135,9 +135,16 @@ export default class Advancement
                   try {
 
                     let newSpent = actor.details.experience.spent + xp
-                    this.checkValidAdvancement(actor.details.experience.total, newSpent, game.i18n.localize("ACTOR.ErrorImprove"), name);
+                    // Only a spend can put an actor beyond their XP. calculateAdvRangeCost returns a negative for a
+                    // reverse advance, so reducing one refunds XP and can only narrow a deficit - checking
+                    // affordability there refused the very change that digs an overspent character out, and did it
+                    // with "cannot afford to improve", about a reduction.
+                    if (xp > 0)
+                    {
+                      this.checkValidAdvancement(actor.details.experience.total, newSpent, game.i18n.localize("ACTOR.ErrorImprove"), name);
+                    }
                     let log = actor.system.addToExpLog(xp, `${name} (${end-start})`, newSpent)
-                    actor.update({ "system.details.experience.spent": newSpent, "system.details.experience.log": log })
+                    await actor.update({ "system.details.experience.spent": newSpent, "system.details.experience.log": log })
                     resolve(true)
                   }
                   catch (e)
@@ -151,10 +158,10 @@ export default class Advancement
             {
               action : "free",
               label: game.i18n.localize("Free"),
-              callback: () => {
+              callback: async () => {
                   let newSpent = actor.details.experience.spent
                   let log = actor.system.addToExpLog(0, `${name} (${end-start})`, newSpent)
-                  actor.update({ "system.details.experience.spent": newSpent, "system.details.experience.log": log })
+                  await actor.update({ "system.details.experience.spent": newSpent, "system.details.experience.log": log })
                   resolve(true) 
                 }
             }],

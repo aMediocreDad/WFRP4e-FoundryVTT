@@ -30,7 +30,8 @@ export default class WFRP_Audio {
     }
     if (test.weapon) {
       context = { item: test.weapon, action: "fire" }
-      if (test.result.misfire)
+      // misfireTable is the 5e (p.165) path, which sets no result.misfire - same sound, same event
+      if (test.result.misfire || test.result.misfireTable)
         context.action = "misfire"
 
       if (test.weapon.isRanged && test.failed &&

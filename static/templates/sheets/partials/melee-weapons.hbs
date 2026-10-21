@@ -1,16 +1,10 @@
 <div class="sheet-list">
     <div class="list-header row-content">
-        <div class="list-name">{{localize "SHEET.MeleeWeaponHeader"}}
-            <a class="list-button" data-action="useUnarmed" data-tooltip="{{localize 'SHEET.Unarmed'}}">
-                <i class="fa fa-fist-raised"></i>
-            </a>
-            <a class="list-button" data-action="useDodge" data-tooltip="{{localize 'SHEET.Dodge'}}">
-                <i class="fas fa-reply"></i>
-            </a>
-            <a class="list-button" data-action="useImprovised" data-tooltip="{{localize 'SHEET.Improvised'}}">
-                <i class="fas fa-question"></i>
-            </a>
-        </div>
+        {{!-- Unarmed, Dodge, Improvised and 5e's Disengage used to hang off this name. They are combat Actions, not
+             operations on the weapon list, and four of them crowded the cell - so they now have their own bar at the
+             top of the Combat tab. The creature sheet keeps its own copy of the first three beside Stomp on its
+             overview, and the vehicle sheet, which renders this partial too, never registered their handlers. --}}
+        <div class="list-name">{{localize "SHEET.MeleeWeaponHeader"}}</div>
         <div>{{localize "Group"}}</div>
         <div>{{localize "Damage"}}</div>
         <div >{{localize "Reach"}}</div>

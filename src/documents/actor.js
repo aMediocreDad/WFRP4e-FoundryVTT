@@ -3,6 +3,10 @@ import WFRP_Audio from "../system/audio-wfrp4e.js";
 import ActiveEffectWFRP4e from "../system/effect-wfrp4e.js";
 import ItemWFRP4e from "./item.js";
 import EditionManager from "../apps/edition-manager.js";
+import CastTest from "../system/rolls/cast-test.js";
+import WomCastTest from "../system/rolls/wom-cast-test.js";
+import FifthEdition from "../system/fifth-edition.js";
+
 /**
  * Provides the main Actor data computation and organization.
  *
@@ -168,7 +172,16 @@ export default class ActorWFRP4e extends WarhammerActor
    */
   async setupCast(spell, context = {}, options) {
 
-    return this._setupTest(EditionManager.getDialog("cast"), EditionManager.getTestClass("cast"), spell, context, options, false)
+    // 5e (p.236): Overcasting spends surplus SL one for one, capped at IB + WPB - which is what WomCastTest implements
+    // and CastTest does not (it halves, the 4e rule), so the 5e Magic toggle has to select the implementation as well
+    // as the surrounding rules. applyPreset turns useWoMOvercast on, so a preset world already runs this path; the
+    // disjunction is what brings a hand-configured one in line with it. Upstream's editionSettings.use5e path is left alone.
+    let testClass = EditionManager.getTestClass("cast");
+    if (testClass === CastTest && WomCastTest.selected)
+    {
+      testClass = WomCastTest;
+    }
+    return this._setupTest(EditionManager.getDialog("cast"), testClass, spell, context, options, false)
   }
 
   /**
@@ -635,7 +648,7 @@ export default class ActorWFRP4e extends WarhammerActor
     //@/HOUSE
 
     // If using a shield, add that AP as well
-    if (game.settings.get("wfrp4e", "uiaShields") && !opposedTest?.defenderTest.context.unopposed) // UIA shields don't need to be used, just equipped
+    if ((game.settings.get("wfrp4e", "uiaShields") || FifthEdition.enabled("Modifiers")) && !opposedTest?.defenderTest.context.unopposed) // UIA shields don't need to be used, just equipped; 5e (p.306) likewise applies shield AP whenever the attack was opposed
     {
       modifiers.ap.shield = this.status.armour.shield
     }
@@ -797,7 +810,9 @@ export default class ActorWFRP4e extends WarhammerActor
     WFRP_Audio.PlayContextAudio(soundContext)
 
     // If damage taken reduces wounds to 0, show Critical
-    if (newWounds <= 0) {
+    // 5e (p.171): a Critical Wound is only inflicted when Damage would take the target below 0 Wounds
+    let criticalWound = FifthEdition.enabled("CriticalHits") ? newWounds < 0 : newWounds <= 0;
+    if (criticalWound) {
       //WFRP_Audio.PlayContextAudio(opposedTest.attackerTest.weapon, {"type": "hit", "equip": "crit"})
       let critAmnt = game.settings.get("wfrp4e", "homebrew").uiaCritsMod
       if (game.settings.get("wfrp4e", "uiaCrits") && critAmnt && (Math.abs(newWounds)) > 0) {
@@ -818,6 +833,11 @@ export default class ActorWFRP4e extends WarhammerActor
         updateMsg += `<br><a data-action="clickTable" class="action-link critical-roll" data-modifier="-20" data-table = "crit${loc}" ><i class='fas fa-list'></i> ${game.i18n.localize("Critical")} (-20)</a>`
       else
         updateMsg += `<br><a data-action="clickTable" class="action-link critical-roll" data-table = "crit${loc}" ><i class='fas fa-list'></i> ${game.i18n.localize("Critical")}</a>`
+
+      if (FifthEdition.enabled("CriticalHits") && opposedTest?.attackerTest?.result?.critical)
+      {
+        updateMsg += `<br>${game.i18n.localize("FIFTHED.SecondCritical")}`; // p.171: a Critical Hit that also takes the target below 0 inflicts two Critical Wounds
+      }
     }
     if (hack)
     {
@@ -877,8 +897,25 @@ export default class ActorWFRP4e extends WarhammerActor
       await actor.applyEffect({effectUuids: filtered.map(i => i.uuid), messageId : opposedTest?.attackerTest.message.id});
     }
 
+    // 5e Inflict (Condition) quality (p.304): a hit applies the named Condition
+    if (FifthEdition.enabled("Qualities") && opposedTest && weaponProperties?.qualities?.inflict)
+    {
+      for (let condition of FifthEdition.parseInflict(weaponProperties.qualities.inflict.value))
+      {
+        await actor.addCondition(condition.key);
+        let strength = condition.strength ? game.i18n.format("FIFTHED.InflictStrength", { strength: condition.strength }) : "";
+        updateMsg += `<br>${game.i18n.format("FIFTHED.Inflicted", { condition: condition.name, strength })}`;
+      }
+    }
+
     // Update actor wound value
-    actor.update({ "system.status.wounds.value": newWounds })
+    let woundUpdate = { "system.status.wounds.value": newWounds };
+    if (FifthEdition.enabled("Momentum") && totalWoundLoss > 0 && actor.status?.advantage?.value > 0)
+    {
+      woundUpdate["system.status.advantage.value"] = 0; // 5e (p.168): suffering Damage loses Momentum
+      updateMsg += `<br>${game.i18n.localize("FIFTHED.MomentumLost")}`;
+    }
+    actor.update(woundUpdate)
 
     if (!createMessage)
     {
@@ -1084,7 +1121,21 @@ export default class ActorWFRP4e extends WarhammerActor
     else super.toggleStatusEffect(statusId, {active, overlay})
   }
 
+  /**
+   * Advantage (Momentum under the 5e toggle) is very often set from a client that does not own the actor: the
+   * defender's client resolves an Opposed Test for both sides, a fleeing character grants it to their opponents,
+   * a Leadership Test hands it to an ally. Route the update through the owning user the way applyBasicDamage()
+   * does, otherwise the server rejects it and the caller throws.
+   *
+   * @param {Number} val New Advantage value
+   */
   setAdvantage(val) {
+    let owningUser = getActiveDocumentOwner(this);
+
+    if (owningUser && owningUser.id != game.user.id)
+    {
+      return SocketHandlers.call("setAdvantage", { actorUuid: this.uuid, value: val }, owningUser.id);
+    }
     return this.update({ "system.status.advantage.value": val })
   }
   modifyAdvantage(val) {
@@ -1096,6 +1147,32 @@ export default class ActorWFRP4e extends WarhammerActor
   }
   modifyWounds(val) {
     return this.setWounds(this.status.wounds.value + val)
+  }
+
+  /**
+   * "You regain all Fortune Points at the start of each gaming session" (p.133). Lives here rather than on the sheet
+   * so a macro or a module can call it, and so scripts get a say through `fortuneRefresh`: they receive the value
+   * about to be written alongside the current one, which is what the results that cap or forbid a refresh need -
+   * "the next time you would normally refresh your pool of Fortune Points you only gain 1" is
+   * `args.fortune = Math.min(args.fortune, args.current + 1)`, and "you may no longer regain Fortune Points" is
+   * `args.fortune = args.current`.
+   *
+   * @returns {number|null} The value Fortune now holds, or null on an actor that has no Fortune at all
+   */
+  async refreshFortune() {
+    let current = this.system.status.fortune?.value;
+    if (current == undefined) {
+      return null; // Only Characters have Fortune
+    }
+
+    let args = { actor: this, fortune: this.system.status.fortune.max ?? 0, current };
+    await Promise.all(this.runScripts("fortuneRefresh", args));
+
+    let fortune = Math.max(0, Number(args.fortune) || 0);
+    if (fortune != current) {
+      await this.update({ "system.status.fortune.value": fortune });
+    }
+    return fortune;
   }
 
   get isMounted() {
@@ -1127,6 +1204,13 @@ export default class ActorWFRP4e extends WarhammerActor
 
 
     let existing = this.hasCondition(effect.id)
+    // Re-applying an unnumbered Condition the actor already holds is a no-op below, so nothing was incurred
+    let alreadyHeld = existing && !existing.isNumberedCondition;
+
+    if (FifthEdition.enabled("Momentum") && !alreadyHeld && !["engaged", "outnumbered", "surrounded", "grappling", "dead"].includes(effect.id) && this.status?.advantage?.value > 0)
+    {
+      await this.setAdvantage(0); // 5e (p.184): incurring a Condition loses Momentum
+    }
 
     if (existing && !existing.isNumberedCondition)
       return existing
@@ -1151,7 +1235,13 @@ export default class ActorWFRP4e extends WarhammerActor
       if (effect.id == "dead")
         effect["flags.core.overlay"] = true;
       if (effect.id == "unconscious")
+      {
         await this.addCondition("prone")
+        if (FifthEdition.enabled("Conditions") && this.hasCondition("stunned"))
+        {
+          await this.hasCondition("stunned").delete(); // 5e (p.187): when you become Unconscious, lose all Stunned Conditions
+        }
+      }
 
       foundry.utils.mergeObject(effect, mergeData);
 

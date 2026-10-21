@@ -1,10 +1,22 @@
+import FifthEdition from "../../system/fifth-edition.js";
+import Engagements from "../../system/engagements.js";
 export default class RollDialog extends WarhammerRollDialogV2 {
 
     static DEFAULT_OPTIONS = {
         position: {
             width: 600
+        },
+        actions: {
+            addManualModifier: this._onAddManualModifier,
+            removeManualModifier: this._onRemoveManualModifier
         }
     };
+
+    /**
+     * Modifiers added by hand in this dialog, as {value, source}. Deliberately not fields: `userEntry` holds one
+     * value per input name and this is a list, and a field would be recomputed away on the next render.
+     */
+    manualModifiers = [];
 
     get tooltipConfig() 
     {
@@ -29,6 +41,16 @@ export default class RollDialog extends WarhammerRollDialogV2 {
                 label: "Difficulty",
                 type: 0,
                 path: "fields.difficulty"
+            },
+            advSources: {
+                label: "FIFTHED.Advantage",
+                type: 1,
+                path: "fields.advSources"
+            },
+            disSources: {
+                label: "FIFTHED.Disadvantage",
+                type: 1,
+                path: "fields.disSources"
             }
         }
     }
@@ -116,9 +138,28 @@ export default class RollDialog extends WarhammerRollDialogV2 {
     }
 
 
+    async _prepareContext(options)
+    {
+        let context = await super._prepareContext(options);
+        context.fifthEdition = FifthEdition.flags;
+        context.manualModifiers = this.manualModifiers.map((modifier, index) => ({
+            index,
+            label: `${foundry.applications.handlebars.numberFormat(modifier.value, { hash: { sign: true } })} ${modifier.source}`
+        }));
+        context.canSpendFortune = FifthEdition.enabled("Fortune") && this.actor.system.status.fortune?.value > 0;
+        context.canSpendFate = FifthEdition.enabled("Fate") && this.actor.system.status.fate?.value > 0; // 5e (p.133): I Will Not Fail!
+        // 5e has no percentage modifiers (p.130-131), so the Modifier field is dead weight under that toggle - but a
+        // script or an Item's own data-driven modifier can still write to it, and a modifier nobody can see is worse
+        // than a row nobody needs. So it goes only while it is empty. super._prepareContext has already run
+        // computeFields by this point, so this reads the final value.
+        context.showModifier = !FifthEdition.enabled("Modifiers") || !!this.fields.modifier;
+        return context;
+    }
+
     async computeFields() 
     {
         this._computeAdvantage();
+        this._computeFortuneAdvantage();
         if (this.actor.attacker)
         {
             this._computeDefending(this.actor.attacker);
@@ -127,11 +168,83 @@ export default class RollDialog extends WarhammerRollDialogV2 {
         if (this.data.targets.length && !this.actor.attacker)
         {
             this._computeTargets(this.data.targets[0]);
+            // Shared by weapon, trait and raw Melee Skill attacks; never by
+            // parries or Disengage contests. p.166 uses one non-stacking SL bonus.
+            if (!this.context.disengage && FifthEdition.isMeleeItem(this.item)) {
+                const bonus = Engagements.attackBonus(this.actor, this.data.targets[0]);
+                if (bonus) {
+                    this.fields.slBonus += bonus;
+                    this.tooltips.add("slBonus", bonus, game.i18n.localize(bonus === 2 ? "FIFTHED.surrounded" : "FIFTHED.outnumbered"));
+                }
+            }
         }
+
+        this._computeManualModifiers();
+    }
+
+    /**
+     * Apply the modifiers added by hand. They go through `tooltips.add` like every automatic one, which is what puts
+     * each of them, named, into the chat card's breakdown.
+     */
+    _computeManualModifiers()
+    {
+        for (let modifier of this.manualModifiers)
+        {
+            this.fields.slBonus += modifier.value;
+            this.tooltips.add("slBonus", modifier.value, modifier.source);
+        }
+    }
+
+    static _onAddManualModifier()
+    {
+        this._addManualModifier();
+    }
+
+    static _onRemoveManualModifier(ev, target)
+    {
+        this.manualModifiers.splice(Number(target.dataset.index), 1);
+        this.render(true);
+    }
+
+    /**
+     * Read the two staging inputs, bank the entry and re-render so computeFields picks it up. The inputs are cleared
+     * by the re-render, since they hold no field of their own.
+     */
+    _addManualModifier()
+    {
+        let value = Number(this.element.querySelector(".manual-modifier-value")?.value);
+        if (!value)
+        {
+            return ui.notifications.warn("DIALOG.ManualModifierEmpty", { localize: true });
+        }
+        let source = this.element.querySelector(".manual-modifier-source")?.value.trim();
+        this.manualModifiers.push({ value, source: source || game.i18n.localize("DIALOG.ManualModifier") });
+        this.render(true);
     }
 
     _computeAdvantage()
     {
+        if (FifthEdition.enabled("Momentum"))
+        {
+            // 5e (p.168): Momentum grants Advantage on Melee Tests and nothing else
+            if (FifthEdition.isMeleeItem(this.item))
+            {
+                if (this.actor.system.status.advantage?.value > 0)
+                {
+                    this.tooltips.start(this);
+                    this.fields.advSources++;
+                    this.tooltips.finish(this, game.i18n.localize("Momentum"));
+                }
+                else if (this.fields.charging)
+                {
+                    // 5e (p.163): a Charge grants Momentum as you barrel in, so the charging attack itself has Advantage
+                    this.tooltips.start(this);
+                    this.fields.advSources++;
+                    this.tooltips.finish(this, game.i18n.localize("Charging"));
+                }
+            }
+            return;
+        }
         if (game.settings.get("wfrp4e", "autoFillAdvantage"))
         {
             this.tooltips.start(this);
@@ -144,6 +257,50 @@ export default class RollDialog extends WarhammerRollDialogV2 {
                 this.fields.successBonus += this.actor.system.status.advantage.value;
             }
             this.tooltips.finish(this, "Advantage");
+        }
+    }
+
+    /**
+     * 5e (p.133): spending a Fortune Point before the roll grants Advantage. The point itself is deducted by the test.
+     */
+    _computeFortuneAdvantage()
+    {
+        if (this.fields.fortuneAdvantage && FifthEdition.enabled("Fortune"))
+        {
+            this.tooltips.start(this);
+            this.fields.advSources++;
+            this.tooltips.finish(this, game.i18n.localize("Fortune"));
+        }
+    }
+
+    /**
+     * 5e Armour Repels the Winds (p.237): -1 SL to Casting and Channelling Tests per AP on the most protected location.
+     * Only worn, mundane armour counts. Metal is exempt for Chamon (Lore of Metal), leather for Ghur (Lore of Beasts).
+     * @param {string|Array<string>} lore Lore key(s) of the spell
+     */
+    _computeArmourWinds(lore)
+    {
+        let armour = this.actor.system.status?.armour;
+        if (!armour) return;
+        let lores = Array.isArray(lore) ? lore : [lore];
+        let penalty = 0;
+        for (let loc of ["head", "body", "lArm", "rArm", "lLeg", "rLeg"])
+        {
+            let ap = 0;
+            for (let layer of armour[loc]?.layers || [])
+            {
+                if (!layer.armourType || layer.magical) continue;
+                if (lores.includes("metal") && layer.metal) continue;
+                if (lores.includes("beasts") && ["softLeather", "boiledLeather"].includes(layer.armourType)) continue;
+                ap += layer.value;
+            }
+            penalty = Math.max(penalty, ap);
+        }
+        if (penalty > 0)
+        {
+            this.tooltips.start(this);
+            this.fields.slBonus -= penalty;
+            this.tooltips.finish(this, game.i18n.localize("FIFTHED.ArmourWinds"));
         }
     }
 
@@ -170,6 +327,19 @@ export default class RollDialog extends WarhammerRollDialogV2 {
         await super._onRender(options);
 
         this.element.querySelector("[name='advantage']").addEventListener("change", this._onAdvantageChanged.bind(this))
+
+        // The dialog submits on Enter from a document-level listener, so Enter in either staging input would roll the
+        // Test instead of banking the modifier. Stopping propagation keeps the event from reaching that listener.
+        this.element.querySelectorAll(".manual-modifier-value, .manual-modifier-source").forEach(input =>
+        {
+            input.addEventListener("keypress", ev =>
+            {
+                if (ev.key != "Enter") return;
+                ev.preventDefault();
+                ev.stopPropagation();
+                this._addManualModifier();
+            });
+        });
     }
 
     _onFieldChange(ev) 
@@ -184,7 +354,9 @@ export default class RollDialog extends WarhammerRollDialogV2 {
 
     _onAdvantageChanged(ev)
     {
-        this.actor.update({"system.status.advantage.value" : Number(ev.currentTarget.value)}).then(a => this.render(true))
+        // Under the 5e Momentum toggle this field is a checkbox, whose value is "on" rather than a number
+        let value = ev.currentTarget.type == "checkbox" ? Number(ev.currentTarget.checked) : Number(ev.currentTarget.value);
+        this.actor.setAdvantage(value).then(a => this.render(true))
         ui.notifications.notify(game.i18n.localize("DIALOG.AdvantageUpdate"))
     }
 
@@ -208,6 +380,11 @@ export default class RollDialog extends WarhammerRollDialogV2 {
             successBonus : 0,
             slBonus : 0,
             difficulty : this._defaultDifficulty(),
+            advSources : 0,
+            disSources : 0,
+            fortuneAdvantage : false,
+            useFate : false,
+            fateRoll : 1,
         }, super._defaultFields());
     }
 
@@ -290,6 +467,17 @@ export default class RollDialog extends WarhammerRollDialogV2 {
     static _baseDialogData(actor, context, options) 
     {
         let dialogData = super._baseDialogData(actor, context, options)
+
+        if (context.engagementTarget) {
+            const target = fromUuidSync(context.engagementTarget);
+            dialogData.data.targets = target ? [target.object || target] : [];
+        }
+
+        // Allow callers to preset fields for any dialog type (e.g. setupWeapon(weapon, {fields : {charging : true}}))
+        if (context.fields)
+        {
+            dialogData.fields = foundry.utils.mergeObject(dialogData.fields || {}, context.fields);
+        }
 
         dialogData.data.other = []; // Container for miscellaneous data that can be freely added onto
         dialogData.data.speaker = CONFIG.ChatMessage.documentClass.getSpeaker({ actor });

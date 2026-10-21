@@ -1,7 +1,23 @@
 import CastTest from "./cast-test.js"
+import FifthEdition from "../fifth-edition.js";
 
 export default class WomCastTest extends CastTest {
 
+  /**
+   * Whether this class, rather than CastTest, owns Overcasting for the world.
+   *
+   * 5e (p.236): "If a Casting Test generates SL beyond those required to cast a spell, you can spend the remaining SL
+   * on Overcasting. You can spend a number of SL equal to your Intelligence Bonus plus Willpower Bonus in this way."
+   * That is one for one against a cost table, which is this class; CastTest halves the surplus, which is 4e. So the
+   * 5e Magic toggle selects this implementation whether or not the world also set the Winds of Magic option.
+   *
+   * Asked in one place because the choice has to be unanimous: Actor#setupCast picks the class, while _overcast and
+   * _overcastReset below decide whether spending is priced from the cost table or counted one per usage. Split those
+   * and availability and spending disagree, which is worse than either rule on its own.
+   */
+  static get selected() {
+    return game.settings.get("wfrp4e", "useWoMOvercast") || FifthEdition.enabled("Magic");
+  }
 
   static fromData(...args)
   {
@@ -12,7 +28,8 @@ export default class WomCastTest extends CastTest {
   // If not, it is not available
   _calculateOverCast(slOver) {
 
-    this.result.overcasts = Math.max(0, slOver) + (this.result.totalPower ? parseInt(Math.floor(this.result.roll / 10)) : 0);    
+    // 5e (p.236-237): at most IB + WPB SL may be spent, and Petty or unmemorised spells cannot Overcast
+    this.result.overcasts = FifthEdition.limitOvercasts(this, Math.max(0, slOver) + (this.result.totalPower ? parseInt(Math.floor(this.result.roll / 10)) : 0));
     this.result.overcast.total = this.result.overcasts;
     this.result.overcast.available = this.result.overcasts;
     let overCastTable = game.wfrp4e.config.overCastTable(this.spell.lore.value);
@@ -75,7 +92,7 @@ export default class WomCastTest extends CastTest {
 
   // @@@@@@@ Overcast functions placed in root class because it is used by both spells and prayers @@@@@@@
   async _overcast(choice) {
-    if (!game.settings.get("wfrp4e", "useWoMOvercast")) {
+    if (!this.constructor.selected) {
       await super._overcast(choice);
     } else {
       const overCastTable = game.wfrp4e.config.overCastTable(this.spell.lore.value);
@@ -196,7 +213,7 @@ export default class WomCastTest extends CastTest {
   }
 
   async _overcastReset() {
-    if (!game.settings.get("wfrp4e", "useWoMOvercast")) {
+    if (!this.constructor.selected) {
       await super._overcastReset();
     } else {
       let overcastData = this.result.overcast

@@ -8,6 +8,10 @@
     </div>
   </div>
 
+  {{> fifthEditionSpends}}
+
+  {{> manualModifiers}}
+
   <div class="form-group custom-select">
     <label>{{localize "Characteristic"}}</label>
     <div class="form-fields">
@@ -26,6 +30,15 @@
         </select>
       </div>
     </div>
+  {{/if}}
+
+  {{#if canTransferMomentum}}
+  <div class="form-group">
+    <label>{{localize "FIFTHED.TransferMomentum"}}</label>
+    <div class="form-fields">
+      <input type="checkbox" name="transferMomentum" {{checked fields.transferMomentum}} />
+    </div>
+  </div>
   {{/if}}
 
   <div class="form-group">

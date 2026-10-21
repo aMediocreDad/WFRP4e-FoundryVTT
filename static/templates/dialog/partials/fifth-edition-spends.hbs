@@ -1,0 +1,24 @@
+{{!-- WFRP 5e (p.133): spending Fortune for Advantage, and "I Will Not Fail!" for Fate.
+
+     These sit here rather than in the left-hand modifier column because they are choices about
+     this roll, like Difficulty and Charging beside them, not values feeding into it. Keeping them
+     out of that column also stops a checkbox from having to share a 3rem field with a number. --}}
+
+{{#if canSpendFortune}}
+<div class="form-group">
+  <label>{{localize "FIFTHED.FortuneAdvantage"}}</label>
+  <div class="form-fields">
+    <input type="checkbox" name="fortuneAdvantage" {{checked fields.fortuneAdvantage}} />
+  </div>
+</div>
+{{/if}}
+
+{{#if canSpendFate}}
+<div class="form-group">
+  <label>{{localize "FIFTHED.UseFate"}}</label>
+  <div class="form-fields">
+    <input type="checkbox" name="useFate" {{checked fields.useFate}} data-tooltip="{{localize 'FIFTHED.FateRollHint'}}" data-tooltip-direction="LEFT" />
+    <input type="number" name="fateRoll" min="1" max="100" value="{{fields.fateRoll}}" data-tooltip="{{localize 'FIFTHED.FateRollChoice'}}" data-tooltip-direction="LEFT" />
+  </div>
+</div>
+{{/if}}

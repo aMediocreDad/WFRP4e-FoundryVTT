@@ -34,12 +34,25 @@
             <input name="hair" type="text" value="{{data.details.hair}}">
             <a class="roll-details" data-type="rollHair"><i class="fa-solid fa-dice"></i></a>
         </div>
+        {{#unless fifthEdition.metacurrency}}
         <div class="detail-form">
             <label>{{localize "Motivation"}}</label>
             <input name="motivation" type="text" value="{{data.details.motivation}}">
             <a class="roll-details" data-type="rollMotivation"><i class="fa-solid fa-dice"></i></a>
         </div>
+        {{/unless}}
         <div class="ambitions">
+            {{#if fifthEdition.ambitions}}
+            {{!-- 5e (p.41-42): one personal Ambition and one Party Ambition --}}
+            <div class="detail-form">
+                <label>{{localize "FIFTHED.Ambition"}}</label>
+                <textarea name="long">{{data.details.long}}</textarea>
+            </div>
+            <div class="detail-form">
+                <label>{{localize "FIFTHED.PartyAmbition"}}</label>
+                <textarea name="party">{{data.details.party}}</textarea>
+            </div>
+            {{else}}
             <div class="detail-form">
                 <label>{{localize "CHARGEN.Details.ShortTermAmbitions"}}</label>
                 <textarea name="short">{{data.details.short}}</textarea>
@@ -48,6 +61,7 @@
                 <label>{{localize "CHARGEN.Details.LongTermAmbitions"}}</label>
                 <textarea name="long" >{{data.details.long}}</textarea>
             </div>
+            {{/if}}
         </div>
     </div>
     <div class="controls">

@@ -4,6 +4,7 @@ import { CharacterDetailsModel } from "./components/details";
 import { StandardActorModel } from "./standard";
 import Advancement from "../../system/advancement";
 import { CharacterCareerModel } from "./components/career";
+import FifthEdition from "../../system/fifth-edition.js";
 let fields = foundry.data.fields;
 
 export class CharacterModel extends StandardActorModel {
@@ -32,6 +33,7 @@ export class CharacterModel extends StandardActorModel {
     async _preUpdate(data, options, user) 
     {
       await super._preUpdate(data, options, user);
+      FifthEdition.redirectMetacurrency(data, this.status);
       if (!options.skipExperienceChecks)
       {
         await this._checkCharacteristicChange(data, options, user);
@@ -90,6 +92,7 @@ export class CharacterModel extends StandardActorModel {
         super.computeDerived();
 
         this.computeCorruption()
+        this.computeFortune()
         if (game.settings.get("wfrp4e", "editionSettings").careerAdvancement5e)
         {
           this.computeCareer5e()
@@ -111,6 +114,37 @@ export class CharacterModel extends StandardActorModel {
         if (this.autoCalc.corruption) {
           this.status.corruption.max += tb + wpb;
         }
+    }
+
+    /**
+     * Fortune's maximum: the number the refresh button restores it to. 4e ties it to Fate - you have as many Fortune
+     * Points as Fate Points - while 5e gives Fortune a Species value of its own that Fate has nothing to do with
+     * (p.27-35). `config.speciesFortune` is empty until the 5e Metacurrency toggle fills it, so one lookup answers
+     * for both editions, and a content module overriding that table is honoured without asking.
+     *
+     * Derived rather than stored so it stays predictable, the way the Wounds and Corruption maxima are, with the
+     * same per-actor opt-out for a table that wants to set it by hand.
+     */
+    computeFortune()
+    {
+        if (!this.autoCalc.fortune)
+        {
+            return;
+        }
+        let config = game.wfrp4e.config;
+        let species = this.details.species.value;
+        let subspecies = this.details.species.subspecies;
+        let fortune = config.subspecies[species]?.[subspecies]?.fortune
+            ?? config.speciesFortune[species]
+            ?? this.status.fate.value;
+
+        fortune += FifthEdition.luckFortune(this.parent);
+
+        // Anything else that raises the maximum - a Talent, a blessing, a house rule - goes through here, the way
+        // woundCalc lets an effect have the last word on Wounds
+        let effectArgs = { fortune, actor: this.parent };
+        this.runScripts("fortuneCalc", effectArgs);
+        this.status.fortune.max = effectArgs.fortune;
     }
 
     computeCareer()
@@ -153,7 +187,7 @@ export class CharacterModel extends StandardActorModel {
           }
 
           // Find talents that have been trained or haven't, add advancement button or greyed out options (untrainedTalents)
-          for (let talent of career.system.talents) 
+          for (let talent of FifthEdition.careerTalents(this.parent, career)) // 5e (p.191): lower levels' Talents stay available
           {
               let trainedTalent = actorTalents.filter(t => t.name == talent)
               if (trainedTalent.length)
@@ -267,7 +301,16 @@ export class CharacterModel extends StandardActorModel {
         ChatMessage.create({ content: reason ? game.i18n.format("CHAT.ExpReceived", { amount, reason }) : game.i18n.format("CHAT.ExpReceivedNoReason", { amount })  , speaker: { alias: this.parent.name } })
     }
 
-    addToExpLog(amount, reason, newSpent, newTotal) 
+    /**
+     * @param {Number} amount
+     * @param {String} reason
+     * @param {Number} [newSpent]
+     * @param {Number} [newTotal]
+     * @param {String} [type] "spent" or "total", which decides the column the entry renders in. Defaults to the
+     *   value implied by newSpent, so an award of XP to the total has to say so - an actor who has spent anything
+     *   would otherwise have the award filed as a spend.
+     */
+    addToExpLog(amount, reason, newSpent, newTotal, type) 
     {
       if (!newSpent)
         newSpent = this.details.experience.spent
@@ -275,7 +318,7 @@ export class CharacterModel extends StandardActorModel {
         newTotal = this.details.experience.total
 
       let expLog = foundry.utils.duplicate(this.details.experience.log || [])
-      expLog.push({ amount, reason, spent: newSpent, total: newTotal, type: newSpent ? "spent" : "total" });
+      expLog.push({ amount, reason, spent: newSpent, total: newTotal, type: type || (newSpent ? "spent" : "total") });
       return expLog
     }
 

@@ -1,5 +1,6 @@
 import SkillTest from "../../system/rolls/skill-test";
 import CharacteristicDialog from "./characteristic-dialog";
+import FifthEdition from "../../system/fifth-edition.js";
 
 export default class SkillDialog extends CharacteristicDialog {
 
@@ -96,6 +97,14 @@ export default class SkillDialog extends CharacteristicDialog {
         return data;
     }
 
+    async _prepareContext(options)
+    {
+        let context = await super._prepareContext(options);
+        // 5e (p.169): lose Momentum to make a Leadership Test and, on a success, hand it to an ally
+        context.canTransferMomentum = FifthEdition.enabled("Momentum") && !!this.skill?.name?.startsWith(game.i18n.localize("NAME.Leadership")) && this.actor.system.status.advantage?.value > 0;
+        return context;
+    }
+
     computeFields()
     {
         // While in a characteristic dialog, the characteristic is considered internal data
@@ -133,17 +142,21 @@ export default class SkillDialog extends CharacteristicDialog {
 
         // Apply armor type penalties at the end
         if (wearingMail || wearingPlate) {
+            // 5e (p.306): "Wearing any Chainmail or Plate confers a penalty of -1 SL to Stealth Tests each" - the same
+            // shape as the 4e rule, one step per armour type, priced in SL
+            let step = FifthEdition.enabled("Modifiers") ? -1 : -10;
             if (wearingMail) {
-                stealthPenaltyValue += -10;
+                stealthPenaltyValue += step;
             }
             if (wearingPlate) {
-                stealthPenaltyValue += -10;
+                stealthPenaltyValue += step;
             }
 
             if (this.item.name.includes(game.i18n.localize("NAME.Stealth"))) {
                 if (stealthPenaltyValue) {
-                    this.fields.modifier += stealthPenaltyValue
-                    this.tooltips.add("modifier", stealthPenaltyValue, game.i18n.localize("SHEET.ArmourPenalties"));
+                    let field = FifthEdition.enabled("Modifiers") ? "slBonus" : "modifier";
+                    this.fields[field] += stealthPenaltyValue
+                    this.tooltips.add(field, stealthPenaltyValue, game.i18n.localize("SHEET.ArmourPenalties"));
                 }
             }
         }
@@ -166,6 +179,7 @@ export default class SkillDialog extends CharacteristicDialog {
     _defaultFields() 
     {
         return foundry.utils.mergeObject({
+            transferMomentum : false,
             characteristic : "ws",
         }, super._defaultFields());
     }

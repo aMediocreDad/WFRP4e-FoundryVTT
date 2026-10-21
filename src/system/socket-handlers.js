@@ -1,6 +1,11 @@
 // Override various socket handling
+import Engagements from "./engagements.js";
 
 export default {
+    engagement: async function (payload) {
+        return Engagements.execute(payload);
+    },
+
     morrslieb: function (payload) {
         canvas.draw();
     },
@@ -24,6 +29,12 @@ export default {
     applyDamage: async function ({ damage, options, actorUuid }) {
         let result = await fromUuidSync(actorUuid)?.applyBasicDamage(damage, options);
         return result;
+    },
+
+    // Performs the update directly rather than calling setAdvantage() again, so a disagreement about who owns the
+    // actor cannot bounce the request between clients
+    setAdvantage: async function ({ actorUuid, value }) {
+        return await fromUuidSync(actorUuid)?.update({ "system.status.advantage.value": value });
     },
 
     changeGroupAdvantage: async function (payload) {

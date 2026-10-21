@@ -60,6 +60,16 @@
         </div>
         <p class="centered">{{localize "CHARGEN.Attributes.Instructions"}}</p>
 
+      {{#if context.fifthEdition.metacurrency}}
+      <div class="meta flexrow">
+        <div class="flexcol allocation-input">
+          <h4>{{localize "Fate"}} ({{context.meta.fate.total}})</h4>
+        </div>
+        <div class="flexcol allocation-input">
+          <h4>{{localize "Fortune"}} ({{context.meta.fortune.total}})</h4>
+        </div>
+      </div>
+      {{else}}
       <p class="centered">{{localize "CHARGEN.Attributes.ExtraPoints" points=context.meta.left}}</p>
       <div class="meta flexrow">
         <div class="flexcol allocation-input">
@@ -71,6 +81,7 @@
           <input data-meta="resilience" type="number" value="{{context.meta.resilience.allotted}}">
         </div>
       </div>
+      {{/if}}
 
       <p class="centered">{{localize "CHARGEN.Attributes.CharacteristicAdvances"}}</p>
       <div class="flexrow">

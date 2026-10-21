@@ -98,7 +98,7 @@ export default class BaseWFRP4eItemSheet extends WarhammerItemSheetV2
 
   _getConditionData() {
     try {
-      let conditions = foundry.utils.duplicate(game.wfrp4e.config.statusEffects).filter(i => !["fear", "grappling", "engaged"].includes(i.id)).map(e => new ActiveEffectWFRP4e(e));
+      let conditions = foundry.utils.duplicate(game.wfrp4e.config.statusEffects).filter(i => !["fear", "grappling", "engaged", "outnumbered", "surrounded"].includes(i.id)).map(e => new ActiveEffectWFRP4e(e));
       let currentConditions = this.item.effects.filter(e => e.isCondition);
       delete conditions.splice(conditions.length - 1, 1)
 

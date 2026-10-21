@@ -102,7 +102,8 @@ export class CareerPathModel extends BaseItemModel
         options.abortItemCreation = true;
       }
 
-      else if (this.parent.actor?.type == "character") 
+      // A caller that already knows the tier (character creation) passes it, and is not charged for a Career change
+      else if (this.parent.actor?.type == "character" && !options.tier) 
       {
         let tier = await this.promptTier();
         if (tier)
@@ -354,7 +355,7 @@ export class CareerPathModel extends BaseItemModel
         let characteristics = {};
         for(let ch in this.characteristics)
         {
-          characteristics[ch] = tier.level >= this.characteristics[ch];
+          characteristics[ch] = this.characteristics[ch] != null && tier.level >= this.characteristics[ch]; // null >= is a number comparison with 0
         }
 
         let itemData = {

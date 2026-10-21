@@ -1,4 +1,6 @@
 import EditionManager from "../../apps/edition-manager";
+import WFRP_Utility from "../../system/utility-wfrp4e";
+import FifthEdition from "../../system/fifth-edition.js";
 
 let fields = foundry.data.fields;
 export class OpposedTestMessage extends WarhammerMessageModel 
@@ -50,6 +52,15 @@ export class OpposedTestMessage extends WarhammerMessageModel
     async onRender(html)
     {
       warhammer.utility.replacePopoutTokens(html);
+
+      // A public contest may include a private NPC roll. Only expose both SL
+      // snapshots to the GM or a viewer who owns both participants.
+      const ownsBoth = ["attackerTestData", "defenderTestData"].every(key =>
+        game.wfrp4e.utility.getSpeaker(this.opposedTestData[key]?.context.speaker || {})?.isOwner);
+      if (!game.user.isGM && !ownsBoth)
+      {
+        html.querySelector(".opposed-resolution")?.remove();
+      }
 
       // Remove applied damage tooltip
       if (!game.wfrp4e.utility.getSpeaker(this.opposedTestData.defenderTestData?.context.speaker || {})?.isOwner)
@@ -115,12 +126,7 @@ export class OpposedTestMessage extends WarhammerMessageModel
       let attackerTest = this.opposedTest.attackerTest;
   
       let offHandData = foundry.utils.duplicate(attackerTest.preData)
-  
-      if (!attackerTest.actor.hasSystemEffect("dualwielder")) 
-      {
-        await attackerTest.actor.addSystemEffect("dualwielder")
-      }
-  
+
       let targets = null;
       if (game.user.targets.size)
       {
@@ -133,6 +139,31 @@ export class OpposedTestMessage extends WarhammerMessageModel
       }
   
       let offhandWeapon = attackerTest.actor.itemTags["weapon"].find(w => w.offhand.value);
+      if (!offhandWeapon)
+      {
+        return ui.notifications.warn("FIFTHED.NoOffhandWeapon", { localize: true });
+      }
+
+      // Applied only once the attack is going ahead, so bailing out below does not leave the effect behind
+      if (!attackerTest.actor.hasSystemEffect("dualwielder"))
+      {
+        await attackerTest.actor.addSystemEffect("dualwielder")
+      }
+
+      let dualWielder = attackerTest.actor.has(game.i18n.localize("NAME.DualWielder"), "talent");
+      let spentMomentum = false;
+      if (FifthEdition.enabled("Momentum") && !dualWielder)
+      {
+        // 5e (p.167): the second attack costs Momentum unless you have Dual Wielder. Charged before the dialog
+        // opens, because by the time the attack is made the Momentum is gone and grants it no Advantage (p.168).
+        if (!(attackerTest.actor.status?.advantage?.value > 0))
+        {
+          return ui.notifications.warn("FIFTHED.NoMomentum", { localize: true });
+        }
+        await attackerTest.actor.setAdvantage(0);
+        spentMomentum = true;
+      }
+
       if (attackerTest.result.roll % 11 == 0 || attackerTest.result.roll == 100) {
         delete offHandData.roll
       }
@@ -150,7 +181,33 @@ export class OpposedTestMessage extends WarhammerMessageModel
         offHandData.roll = Number(offhandRoll);
       }
   
-      attackerTest.actor.setupWeapon(offhandWeapon, { appendTitle: ` (${game.i18n.localize("SHEET.Offhand")})`, dualWieldOffhand: true, offhandReverse: offHandData.roll, targets}).then(test => test.roll());
+      // 4e Dual Wielder reuses the reversed roll; the 5e second attack is a fresh Melee Test (p.167)
+      let offhandReverse = FifthEdition.enabled("Momentum") ? undefined : offHandData.roll;
+      let test = await attackerTest.actor.setupWeapon(offhandWeapon, { appendTitle: ` (${game.i18n.localize("SHEET.Offhand")})`, dualWieldOffhand: true, offhandReverse, targets});
+      if (!test)
+      {
+        // Dialog cancelled, so no attack was made - hand the Momentum back rather than charging for nothing
+        if (spentMomentum)
+        {
+          await attackerTest.actor.setAdvantage(1);
+        }
+        return;
+      }
+      if (spentMomentum)
+      {
+        ChatMessage.create(WFRP_Utility.chatDataSetup(game.i18n.format("FIFTHED.SpendMomentumText", { name: attackerTest.actor.prototypeToken?.name || attackerTest.actor.name, reason: game.i18n.localize("FIFTHED.SpendOffhand") })));
+      }
+      await test.roll();
+
+      if (FifthEdition.enabled("Qualities") && offhandWeapon.properties.qualities.parry)
+      {
+        // 5e Parry (p.304): a second attack made with a Parry weapon after a hit is Unopposed
+        for (let message of test.opposedMessages)
+        {
+          await message.system.opposedHandler.resolveUnopposed();
+        }
+        ChatMessage.create(WFRP_Utility.chatDataSetup(game.i18n.localize("FIFTHED.ParryUnopposed")));
+      }
     }
 
     

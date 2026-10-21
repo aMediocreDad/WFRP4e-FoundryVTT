@@ -1,26 +1,64 @@
 <section class="tab {{tab.cssClass}}" data-group="primary" data-tab="{{tab.id}}">
-
     {{#if (settings "editionSettings.use5e")}}
         {{formGroup fields.status.fields.momentum value=system.status.momentum rootId=rootId classes="momentum"}}
     {{else}}
-        <div class="form-group">
-            {{#if (settings "useGroupAdvantage")}}
-                <label style="flex: 1"><a data-action="groupActions">{{localize "SHEET.GroupAdvantage"}} <i
-                            class="fa-solid fa-chevron-down"></i></a></label>
-            {{else}}
-                <label style="flex: 1">{{localize "Advantage"}}</label>
-            {{/if}}
-            <div class="form-fields">
-                <input type="number" name="system.status.advantage.value" value="{{system.status.advantage.value}}" />
-            </div>
+    {{#unless fifthEdition.momentum}}
+    <div class="form-group">
+        {{#if (settings "useGroupAdvantage")}}
+            <label style="flex: 1"><a data-action="groupActions">{{localize "SHEET.GroupAdvantage"}} <i
+                        class="fa-solid fa-chevron-down"></i></a></label>
+        {{else}}
+            <label style="flex: 1">{{localize "Advantage"}}</label>
+        {{/if}}
+        <div class="form-fields">
+            <input type="number" name="system.status.advantage.value" value="{{system.status.advantage.value}}" />
         </div>
+    </div>
 
-        <div class="group-actions collapsed">
+    <div class="group-actions collapsed">
 
-        </div>
+    </div>
+    {{/unless}}
     {{/if}}
 
-    
+    {{!-- The combat Actions that are not a weapon in the list below. They used to ride in the melee list's header,
+         where four icon buttons shared a cell with the list name; given a bar of their own they read as the set
+         they are, and the tab opens on what you can do rather than on the weapons you can do it with.
+
+         5e (p.168): Momentum takes the far end, where a list's column labels sit, so the bar carries weight at
+         both ends. It is a single toggle rather than a counter - you either have Momentum or you don't - which is
+         why it replaces the Advantage row above instead of joining it. Disengaging needs no `system.status.advantage`
+         guard the way it did in the melee partial: only characters, NPCs and creatures load this tab, never vehicles. --}}
+    <div class="sheet-list combat-actions">
+        <div class="list-header row-content">
+            <div class="list-name">{{localize "SHEET.CombatActions"}}
+                <a class="list-button" data-action="useUnarmed" data-tooltip="{{localize 'SHEET.Unarmed'}}">
+                    <i class="fa fa-fist-raised"></i>
+                </a>
+                <a class="list-button" data-action="useDodge" data-tooltip="{{localize 'SHEET.Dodge'}}">
+                    <i class="fas fa-reply"></i>
+                </a>
+                <a class="list-button" data-action="useImprovised" data-tooltip="{{localize 'SHEET.Improvised'}}">
+                    <i class="fas fa-question"></i>
+                </a>
+                {{#if fifthEdition.momentum}}
+                <a class="list-button" data-action="disengage" data-tooltip="{{localize 'FIFTHED.DisengageHint'}}">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                </a>
+                {{/if}}
+            </div>
+            {{#if fifthEdition.momentum}}
+            <div class="momentum">
+                <span class="momentum-toggle">
+                    <input type="checkbox" class="circle" data-action="toggleMomentum" {{checked system.status.advantage.value}} />
+                    <span>{{localize "Momentum"}}</span>
+                </span>
+                <a data-action="spendMomentum"><i class="fa-solid fa-bolt"></i> {{localize "FIFTHED.Spend"}}</a>
+            </div>
+            {{/if}}
+        </div>
+    </div>
+
     {{#if actor.attacker}} 
     <div class="attacker">
         <div class="header">{{localize "Attacker"}}</div>

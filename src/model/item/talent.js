@@ -1,4 +1,5 @@
 import { BaseItemModel } from "./components/base";
+import FifthEdition from "../../system/fifth-edition.js";
 let fields = foundry.data.fields;
 
 
@@ -53,8 +54,9 @@ export class TalentModel extends BaseItemModel {
             return;
         }
         
-        // Record advancement if the talent is in the owner's career
-        if (this.parent.isOwned)
+        // Record advancement if the talent is in the owner's career. Character creation opts out: p.36 lets only
+        // Trappings tick the tracker there
+        if (this.parent.isOwned && !options.skipCareerAdvancement)
         {
             this.parent.actor.system.career.handleTalentAdvancement(this.parent);
         }
@@ -71,6 +73,9 @@ export class TalentModel extends BaseItemModel {
     }
 
     get Max() {
+        if (FifthEdition.enabled("XP")) {
+            return FifthEdition.talentMax(this.parent.name); // 5e (p.191): no Max, a Talent is bought once unless its description says otherwise
+        }
         switch (this.max.value) // Turn its max value into "numMax", which is an actual numeric value
         {
             case '1':
@@ -112,7 +117,18 @@ export class TalentModel extends BaseItemModel {
     }
 
     get cost() {
+        if (FifthEdition.enabled("XP")) {
+            return 100; // 5e (p.191): every Talent purchase costs 100 XP
+        }
         return (this.Advances + 1) * 100
+    }
+
+    /** XP refunded when the most recent purchase of this Talent is removed */
+    get refund() {
+        if (FifthEdition.enabled("XP")) {
+            return 100;
+        }
+        return this.Advances * 100
     }
 
     get Advances() {

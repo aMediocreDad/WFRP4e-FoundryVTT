@@ -3,6 +3,17 @@
         <div>
             {{{result}}}
         </div>
+        {{#if resolution}}
+        <details class="opposed-resolution">
+            <summary>{{localize "BREAKDOWN.Explanation"}}</summary>
+            <p>{{localize "BREAKDOWN.AttackerSL"}}: {{resolution.originalAttackerSL}} → {{resolution.attackerSL}}</p>
+            <p>{{localize "BREAKDOWN.DefenderSL"}}: {{resolution.originalDefenderSL}} → {{resolution.defenderSL}}</p>
+            {{#each resolution.notes}}
+            <p>{{this}}</p>
+            {{/each}}
+            <p>{{localize resolution.reason}}</p>
+        </details>
+        {{/if}}
         <div>
             {{{damage.description}}}
             {{#if breakdown.formatted}}
@@ -26,7 +37,7 @@
             {{{confirmation}}}
         {{/if}}
         {{#if showDualWielding}}
-            <p><button class='chat-button' data-action="rollDualWielder">Roll Dual Wielder Attack</button></p>
+            <p><button class='chat-button' data-action="rollDualWielder">{{#if dualWieldCostsMomentum}}{{localize "FIFTHED.DualWieldMomentum"}}{{else}}Roll Dual Wielder Attack{{/if}}</button></p>
         {{/if}}
             {{#each actions}}
                 <button class="chat-button" type="button"

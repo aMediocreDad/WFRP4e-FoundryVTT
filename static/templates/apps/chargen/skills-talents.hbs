@@ -5,7 +5,11 @@
 
 
   <div class="chargen-content">
+    {{#if fifthEdition.metacurrency}}
+    <p>{{localize "CHARGEN.SkillsTalents.SkillAdvances5e"}}</p>
+    {{else}}
     <p>{{localize "CHARGEN.SkillsTalents.SkillAdvances"}}</p>
+    {{/if}}
     <div class="species-skills flexrow">
       <div class="drag-area" data-advance="0">
         <div class="flexrow">
@@ -19,6 +23,7 @@
 
       <div class="flexcol">
 
+        {{#unless fifthEdition.metacurrency}}
         <div class="drag-area" data-advance="3">
           <p class="centered">{{localize "CHARGEN.SkillsTalents.NumAdvances" num=3}}</p>
           <div class="flexrow">
@@ -29,6 +34,7 @@
             {{/each}}
           </div>
         </div>
+        {{/unless}}
 
         <div class="drag-area" data-advance="5">
           <p class="centered">{{localize "CHARGEN.SkillsTalents.NumAdvances" num=5}}</p>
@@ -89,12 +95,16 @@
       {{/each}}
     </div>
 
+    {{#if fifthEdition.metacurrency}}
+    <p class="centered">{{localize "CHARGEN.SkillsTalents.CareerSkills5e" points=pointsAllocated}}</p>
+    {{else}}
     <p class="centered">{{localize "CHARGEN.SkillsTalents.CareerSkills" points=pointsAllocated}}</p>
+    {{/if}}
     <div class="career-skills">
       {{#each careerSkills as |adv skill|}}
       <div class="skill-allocation">
         <a class="item-lookup" data-type="skill">{{skill}}</a> <input data-skill="{{skill}}" type="number"
-          value="{{adv}}" min="0" max="10">
+          value="{{adv}}" min="0" {{#if @root.fifthEdition.metacurrency}}max="15" step="5"{{else}}max="10"{{/if}}>
       </div>
       {{/each}}
     </div>

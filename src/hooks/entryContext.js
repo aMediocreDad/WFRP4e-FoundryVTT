@@ -4,6 +4,7 @@ import WFRP_Utility from "../system/utility-wfrp4e.js";
 import CastTest from "../system/rolls/cast-test.js";
 import EditTest from "../apps/edit-test.js";
 import { OpposedHandlerMessage } from "../model/message/oppose-handler.js";
+import FifthEdition from "../system/fifth-edition.js";
 
 
 export default function () {
@@ -67,8 +68,17 @@ export default function () {
       //Test must be failed
       let message = game.messages.get(li.dataset.messageId);
       let test = message.system?.test;
-      return test && !test.e5 && test.actor.isOwner && test.actor.status.fortune?.value > 0 && test.failed && !test.fortuneUsed?.reroll
-
+      if (!test || test.e5 || !test.actor.isOwner || !(test.actor.status.fortune?.value > 0))
+      {
+        return false;
+      }
+      // 5e (p.133): "Reroll a Test, keeping the new result. You may spend another Fortune to reroll again." Neither
+      // limit 4e puts on it survives - the Test need not have failed, and one reroll does not use up the option.
+      if (FifthEdition.enabled("Fortune"))
+      {
+        return true;
+      }
+      return test.failed && !test.fortuneUsed?.reroll
     };
     let canApplyFortuneAddSL = function (li) {
       //Condition to have the fortune contextual options:
@@ -78,7 +88,7 @@ export default function () {
       //Once per roll (or at least, not on a reroll card)
       let message = game.messages.get(li.dataset.messageId);
       let test = message.system?.test;
-      return test && !test.e5  && test.actor.isOwner && test.actor.status.fortune?.value > 0 && !test.fortuneUsed?.SL
+      return !FifthEdition.enabled("Fortune") && test && !test.e5 && test.actor.isOwner && test.actor.status.fortune?.value > 0 && !test.fortuneUsed?.SL // 5e Fortune has no "+1 SL" use (p.133)
     };
     let canApplyDarkDeals = function (li) {
       //Condition to have the darkdeak contextual options:
@@ -86,7 +96,7 @@ export default function () {
       //Own the roll
       let message = game.messages.get(li.dataset.messageId);
       let test = message.system?.test;
-      return test && test.actor.isOwner && test.actor.type == "character"
+      return !FifthEdition.enabled("Corruption") && test && test.actor.isOwner && test.actor.type == "character" // 5e has no Dark Deals
     };
 
     let canGMReroll = function (li) {

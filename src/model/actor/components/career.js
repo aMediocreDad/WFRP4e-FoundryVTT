@@ -1,4 +1,5 @@
 import Advancement from "../../../system/advancement";
+import FifthEdition from "../../../system/fifth-edition.js";
 
 let fields = foundry.data.fields;
 
@@ -191,7 +192,9 @@ export class CharacterCareerModel extends foundry.abstract.DataModel {
 
     handleTalentAdvancement(talent)
     {
-        if (this.talents.includes(talent.name) && game.settings.get("wfrp4e", "editionSettings").careerAdvancement5e)
+        // Matched by FifthEdition.isCareerTalent rather than exact name, so a Career listing "Etiquette (Any One)" counts
+        // the Etiquette the character actually bought
+        if (FifthEdition.isCareerTalent(this.talents, talent.name) && game.settings.get("wfrp4e", "editionSettings").careerAdvancement5e)
         {
             this.parent.parent.update(this.addAdvancement({type: "talent", label: game.i18n.format("5e.Advancement.Talent", {talent: talent.name})}));
         }
@@ -386,14 +389,13 @@ export class CharacterCareerModel extends foundry.abstract.DataModel {
                     action: "yes",
                     label: game.i18n.localize("Yes"),
                     default: true,
-                    callback: dlg => {
+                    callback: async dlg => {
                       try {
                         Advancement.checkValidAdvancement(actor.details.experience.total, actor.details.experience.spent + 100, game.i18n.localize("ACTOR.ErrorAdd"), talent.name);
-                        actor.createEmbeddedDocuments("Item", [talent.toObject()]);
-                        let expLog = foundry.utils.duplicate(actor.details.experience.log || []) 
-                        expLog.push({amount : 100, reason : talent.name, spent : actor.details.experience.spent + 100, total : actor.details.experience.total, type : "spent"})
+                        await actor.createEmbeddedDocuments("Item", [talent.toObject()]);
+                        let expLog = actor.system.addToExpLog(100, talent.name, actor.details.experience.spent + 100)
                         ui.notifications.notify(game.i18n.format("ACTOR.SpentExp", {amount : 100, reason : talent.name}))
-                        actor.update( // Subtract experience if added
+                        await actor.update( // Subtract experience if added
                           {
                             "system.details.experience.spent": actor.details.experience.spent + 100,
                             "system.details.experience.log": expLog

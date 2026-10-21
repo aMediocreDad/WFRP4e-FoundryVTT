@@ -9,13 +9,15 @@
                             {{localize (configLookup "characteristicsAbbrev" @key)}}
                         </label>
                         {{#if this.career}}
-                            <a class="advancement-indicator" data-action="advanceCharacteristic" data-tooltip="{{this.cost}} XP" data-characteristic="{{@key}}">
+                            {{!-- Text glyphs, matching the Skills list. They are different widths, which the
+                                  right-edge anchor in the sheet rules absorbs. --}}
+                            <a class="advancement-indicator{{#if this.complete}} complete{{/if}}" data-action="advanceCharacteristic" data-tooltip="{{this.cost}} XP" data-characteristic="{{@key}}">
                                 {{#if this.complete}}
                                 &#10003;
                                 {{else if this.career}}
                                 +
                                 {{/if}}
-                                </a>
+                            </a>
                         {{/if}}
                     </div>
                 </th>
@@ -88,8 +90,21 @@
             <div class="field interact" style="grid-column: 9 / span 4"><a data-action="stepProperty" data-path="system.status.fate.value">{{system.status.fate.value}}</a></div>
         </div>
         {{else}}
-        <div class="attribute-box metacurrencies">
-            <div class="label" style="grid-column: 1 / span 4"><label>{{localize "Fortune"}}</label></div>
+        <div class="attribute-box metacurrencies{{#if fifthEdition.metacurrency}} top-label{{/if}}">
+            {{#if fifthEdition.metacurrency}}
+            {{!-- 5e: Resilience and Resolve no longer exist (p.364); Fortune can also remove a Condition (p.133).
+                 Two values instead of four, so the box is laid out label-over-value like the Wounds and Movement
+                 boxes beside it: no empty second row, and the label has room for its icon. --}}
+            <div class="label" style="grid-column: 1 / span 8"><label class="centered">{{localize "Fortune"}}</label>{{#if fifthEdition.fortune}} <a data-action="fortuneRemoveCondition" data-tooltip="{{localize 'FIFTHED.FortuneRemoveCondition'}}"><i class="fa-solid fa-hand-sparkles"></i></a>{{/if}} <a data-action="resetFortune" data-tooltip="{{localize 'FORTUNE.Refresh'}}"><i class="fa-solid fa-arrows-rotate"></i></a></div>
+            <div class="label" style="grid-column: 9 / span 4"><label class="centered">{{localize "Fate"}}</label></div>
+            <div class="field interact" style="grid-column: 1 / span 4"><a data-action="stepProperty" data-path="system.status.fortune.value">{{system.status.fortune.value}}</a></div>
+            <div class="field" style="grid-column: 5 / span 4"><input type="number" {{#if actor.system.autoCalc.fortune}}readonly{{else}}name="system.status.fortune.max"{{/if}} value="{{system.status.fortune.max}}" data-tooltip="{{localize 'FORTUNE.Max'}}"></div>
+            <div class="field interact" style="grid-column: 9 / span 4"><a data-action="stepProperty" data-path="system.status.fate.value">{{system.status.fate.value}}</a></div>
+            {{else}}
+            {{!-- Four currencies in two rows leaves no column for a maximum, and 4e does not need one: Fortune's
+                 cap is your Fate, which is the cell directly below it. So this layout gets the refresh button, whose
+                 target is that same unset-follows-Fate maximum, and the 5e layout above gets the editable field. --}}
+            <div class="label" style="grid-column: 1 / span 4"><label>{{localize "Fortune"}}</label>{{#if fifthEdition.fortune}} <a data-action="fortuneRemoveCondition" data-tooltip="{{localize 'FIFTHED.FortuneRemoveCondition'}}"><i class="fa-solid fa-hand-sparkles"></i></a>{{/if}}<a data-action="resetFortune" data-tooltip="{{localize 'FORTUNE.Refresh'}}"><i class="fa-solid fa-arrows-rotate"></i></a></div>
             <div class="field interact" style="grid-column: 5 / span 2"><a data-action="stepProperty" data-path="system.status.fortune.value">{{system.status.fortune.value}}</a></div>
             <div class="label" style="grid-column: 7 / span 4"><label>{{localize "Resolve"}}</label></div>
             <div class="field interact" style="grid-column: 11 / span 2"><a data-action="stepProperty" data-path="system.status.resolve.value">{{system.status.resolve.value}}</a></div>
@@ -97,6 +112,7 @@
             <div class="field interact" style="grid-column: 5 / span 2"><a data-action="stepProperty" data-path="system.status.fate.value">{{system.status.fate.value}}</a></div>
             <div class="label" style="grid-column: 7 / span 4"><label>{{localize "Resilience"}}</label></div>
             <div class="field interact" style="grid-column: 11 / span 2"><a data-action="stepProperty" data-path="system.status.resilience.value">{{system.status.resilience.value}}</a></div>
+            {{/if}}
         </div>
         {{/if}}
         <div class="attribute-box top-label">

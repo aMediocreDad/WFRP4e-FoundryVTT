@@ -1,0 +1,29 @@
+{{!-- A modifier the GM or player adds by hand, priced in SL.
+
+     The Modifier field could only ever take an unlabelled percentage, so anything the system did not know about
+     arrived in the breakdown as a bare number. Here the source is recorded with the value and travels out to the
+     chat card beside every automatic modifier. Under the 5e Modifiers toggle it also replaces that field outright,
+     since 5e has no percentage modifiers at all (p.130-131).
+
+     Added entries are the dialog's own state rather than fields: there is a list of them, and `userEntry` holds one
+     value per input name. The two inputs below are deliberately unnamed for the same reason - a named input is a
+     field, and every change to one re-renders the dialog. --}}
+
+<div class="form-group manual-modifier-entry" data-tooltip="{{localize 'DIALOG.ManualModifierTT'}}" data-tooltip-direction="LEFT">
+  <label>{{localize "DIALOG.ManualModifier"}}</label>
+  <div class="form-fields">
+    <input type="number" class="manual-modifier-value" placeholder="{{localize 'DIALOG.ManualModifierSL'}}">
+    <input type="text" class="manual-modifier-source" placeholder="{{localize 'DIALOG.ManualModifierSource'}}">
+    <a data-action="addManualModifier" aria-label="{{localize 'DIALOG.ManualModifierAdd'}}"><i class="fa-solid fa-plus"></i></a>
+    {{!-- Inside the fields rather than beside them, so the chips line up under the inputs they came from --}}
+    {{#if manualModifiers.length}}
+    <div class="manual-modifier-list">
+      {{#each manualModifiers}}
+      <a class="manual-modifier" data-action="removeManualModifier" data-index="{{this.index}}" data-tooltip="{{localize 'DIALOG.ManualModifierRemove'}}" data-tooltip-direction="LEFT">
+        {{this.label}} <i class="fa-solid fa-xmark"></i>
+      </a>
+      {{/each}}
+    </div>
+    {{/if}}
+  </div>
+</div>

@@ -1,5 +1,6 @@
 import CombatHelpersWFRP from "../system/combat.js"
 import WFRP_Utility from "../system/utility-wfrp4e.js"
+import FifthEdition from "../system/fifth-edition.js"
 
 export default function() {
 
@@ -94,5 +95,39 @@ export default function() {
 
       element.insertAfter(html.querySelector(".combat-tracker-header"))
     }
+
+    addFleeControls(html);
   })
+
+  /**
+   * 5e (p.163): Fleeing is your Move, not a Momentum spend, so it belongs here rather than on the sheet's Momentum
+   * row - on the tracker it is also where a player is looking on their Turn, and one control covers characters, NPCs
+   * and creatures alike instead of a button on each sheet.
+   */
+  function addFleeControls(html)
+  {
+    if (!FifthEdition.enabled("Momentum")) return;
+
+    for (let row of html.querySelectorAll(".combatant[data-combatant-id]"))
+    {
+      let combatant = game.combat?.combatants.get(row.dataset.combatantId);
+      let controls = row.querySelector(".combatant-controls");
+      if (!combatant?.actor?.isOwner || !controls || controls.querySelector(".flee-combat")) continue;
+
+      let button = document.createElement("button");
+      button.type = "button";
+      button.className = "inline-control combatant-control icon fa-solid fa-person-running flee-combat";
+      button.setAttribute("data-tooltip", ""); // Empty, so the tooltip falls back to the label, as core's own controls do
+      button.setAttribute("aria-label", game.i18n.localize("FIFTHED.FleeHint"));
+      button.addEventListener("click", ev => {
+        ev.preventDefault();
+        ev.stopPropagation(); // The row itself activates the combatant
+        FifthEdition.flee(combatant.actor, combatant.token);
+      });
+
+      // Ahead of the effect icons, so it reads as one of the row's controls rather than part of the effect strip
+      let effects = controls.querySelector(".token-effects");
+      effects ? controls.insertBefore(button, effects) : controls.append(button);
+    }
+  }
 }

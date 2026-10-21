@@ -2,6 +2,7 @@ import CareerSelector from "../../apps/career-selector";
 import Advancement from "../../system/advancement";
 import WFRP_Utility from "../../system/utility-wfrp4e";
 import StandardWFRP4eActorSheet from "./standard-sheet";
+import FifthEdition from "../../system/fifth-edition.js";
 
 export default class ActorSheetWFRP4eCharacter extends StandardWFRP4eActorSheet
 {
@@ -19,7 +20,12 @@ export default class ActorSheetWFRP4eCharacter extends StandardWFRP4eActorSheet
           changeCareer : this._onChangeCareer,
           onRest : this._onRest,
           deleteExp : this._onDeleteExp,
-          toggleOwnedTrapping : this._onToggleTrapping
+          toggleOwnedTrapping : this._onToggleTrapping,
+          fortuneRemoveCondition : this._onFortuneRemoveCondition,
+          resetFortune : this._onResetFortune,
+          ambitionProgress : this._onAmbitionProgress,
+          ambitionAchieved : this._onAmbitionAchieved,
+          partyAmbitionComplete : this._onPartyAmbitionComplete
         },
         window : {
           resizable : true
@@ -213,9 +219,98 @@ export default class ActorSheetWFRP4eCharacter extends StandardWFRP4eActorSheet
       }
     }
 
+    /**
+     * 5e (p.41): genuine progress towards the personal Ambition during a session is worth 50 XP
+     */
+    static async _onAmbitionProgress(ev) {
+      if (await this._confirmAmbition("FIFTHED.AmbitionProgress", "FIFTHED.AmbitionProgressPrompt")) {
+        await FifthEdition.awardAmbitionXP(this.actor, "progress");
+      }
+    }
+
+    /**
+     * 5e (p.41): achieving the personal Ambition is worth 250 XP, after which a new Ambition is chosen
+     */
+    static async _onAmbitionAchieved(ev) {
+      if (await this._confirmAmbition("FIFTHED.AmbitionAchieved", "FIFTHED.AmbitionAchievedPrompt")) {
+        await FifthEdition.awardAmbitionXP(this.actor, "achieved");
+      }
+    }
+
+    /**
+     * 5e (p.42): completing the Party Ambition grants each Character an additional Fate Point
+     */
+    static async _onPartyAmbitionComplete(ev) {
+      if (await this._confirmAmbition("FIFTHED.PartyAmbitionComplete", "FIFTHED.PartyAmbitionCompletePrompt")) {
+        await FifthEdition.completePartyAmbition(this.actor);
+      }
+    }
+
+    _confirmAmbition(title, prompt) {
+      return foundry.applications.api.DialogV2.confirm({
+        window: { title: game.i18n.localize(title) },
+        content: `<p>${game.i18n.localize(prompt)}</p>`,
+        rejectClose: false
+      });
+    }
+
+    /**
+     * 5e (p.133): spend a Fortune Point to remove one Condition
+     */
+    static async _onFortuneRemoveCondition(ev) {
+      if (this.actor.status.fortune.value <= 0) {
+        return ui.notifications.warn("FIFTHED.NoFortune", { localize: true });
+      }
+      let conditions = this.actor.effects.filter(e => e.isCondition && !["engaged", "outnumbered", "surrounded", "grappling", "dead"].includes(e.conditionId));
+      if (!conditions.length) {
+        return ui.notifications.warn("FIFTHED.NoConditions", { localize: true });
+      }
+      let chosen = await ItemDialog.create(conditions, 1, { title: game.i18n.localize("FIFTHED.FortuneRemoveCondition"), text: game.i18n.localize("FIFTHED.ChooseCondition") });
+      if (!chosen?.[0]) {
+        return;
+      }
+      await this.actor.removeCondition(chosen[0].conditionId, 1);
+      await this.actor.update({ "system.status.fortune.value": this.actor.status.fortune.value - 1 });
+      let html = `<h3 class="center"><b>${game.i18n.localize("FORTUNE.Use")}</b></h3>`;
+      html += game.i18n.format("FIFTHED.FortuneRemoveConditionText", { character: `<b>${this.actor.name}</b>`, condition: chosen[0].name }) + "<br>";
+      html += `<b>${game.i18n.localize("FORTUNE.PointsRemaining")} </b>${this.actor.status.fortune.value}`;
+      ChatMessage.create(WFRP_Utility.chatDataSetup(html, "gmroll"));
+    }
+
+    /**
+     * Fortune is spent through a session and refreshed at the start of the next one, so it needs a maximum to refresh
+     * to. CharacterModel.computeFortune derives it: your Species Fortune under 5e (p.27-35), your Fate otherwise.
+     */
+    static async _onResetFortune(ev) {
+      let status = this.actor.system.status.fortune;
+      let before = status.value;
+      let alreadyFull = before >= (status.max ?? 0);
+
+      let after = await this.actor.refreshFortune();
+      if (after == before) {
+        // Nothing moved: either there was nothing to regain, or a fortuneRefresh script held it back
+        return ui.notifications.info(alreadyFull ? "FORTUNE.AlreadyFull" : "FORTUNE.Held", { localize: true });
+      }
+      ui.notifications.info(game.i18n.format("FORTUNE.Refreshed", { character: this.actor.name, value: after }));
+    }
+
     static async _onRest(ev) {
       let skill = this.actor.itemTags.skill.find(s => s.name == game.i18n.localize("NAME.Endurance"));
       let options = {rest: true, tb: this.actor.characteristics.t.bonus, skipTargets: true}
+      if (FifthEdition.enabled("Healing")) {
+        // 5e (p.170): an Average Endurance Test at the end of the day; a restful day recovers TB more, even on a failure
+        options.fields = { difficulty: "average" };
+        options.restful = await foundry.applications.api.DialogV2.confirm({
+          window: { title: game.i18n.localize("RestRecover") },
+          content: `<p>${game.i18n.localize("FIFTHED.RestfulPrompt")}</p>`,
+          yes: { label: game.i18n.localize("FIFTHED.RestfulYes") },
+          no: { label: game.i18n.localize("FIFTHED.RestfulNo") },
+          rejectClose: false
+        });
+        if (options.restful === null) {
+          return;
+        }
+      }
       let test;
       if (skill)
       {
@@ -338,7 +433,7 @@ export default class ActorSheetWFRP4eCharacter extends StandardWFRP4eActorSheet
       if (ev.button == 0) {
         // All career talents are stored in flags, retrieve the one clicked - use to calculate exp
         let spent = 0;
-        let cost = (advances + 1) * 100
+        let cost = talent.system.cost; // a flat 100 XP under 5e (p.191)
         try {
           Advancement.checkValidAdvancement(this.actor.details.experience.total, this.actor.details.experience.spent + cost, game.i18n.localize("ACTOR.ErrorImprove"), talent.name);
           if (advances < talent.system.Max || talent.system.Max == "-") {
@@ -358,13 +453,13 @@ export default class ActorSheetWFRP4eCharacter extends StandardWFRP4eActorSheet
       // If right click, ask to refund EXP or not
       else if (ev.button == 2) {
         let spent = 0;
-        let cost = (advances) * 100
+        let cost = talent.system.refund;
         spent = this.actor.details.experience.spent - cost
 
         new foundry.applications.api.DialogV2(
           {
             window : {title: game.i18n.localize("SHEET.RefundXPTitle")},
-            content: `<p>${game.i18n.localize("SHEET.RefundXPPrompt")} (${(advances) * 100})</p>`,
+            content: `<p>${game.i18n.localize("SHEET.RefundXPPrompt")} (${cost})</p>`,
             buttons:
             {
               yes:

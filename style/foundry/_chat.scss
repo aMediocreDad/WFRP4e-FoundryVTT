@@ -39,8 +39,9 @@
         .chat-button {
             @include foundry-button;
             line-height: 1.5rem;
-            height: 1.5rem;
-            white-space: nowrap;
+            // A label too long for one line has to grow the button, not spill out of it
+            min-height: 1.5rem;
+            text-align: center;
         }
 
         .opposed-options {
@@ -83,6 +84,39 @@
             font-size: var(--font-size-18);
             font-weight: bold;
             margin-bottom: 0.5rem;
+        }
+
+        .test-breakdown,
+        .opposed-resolution {
+            margin-bottom: 0.5rem;
+            text-align: left;
+            font-size: var(--font-size-14);
+            font-weight: normal;
+            summary {
+                cursor: pointer;
+                font-size: var(--font-size-12);
+                &:focus-visible {
+                    outline: 2px solid currentColor;
+                    outline-offset: 2px;
+                }
+            }
+            p {
+                margin: 0.25rem 0;
+            }
+        }
+
+        .test-breakdown {
+            display: inline;
+            summary {
+                display: inline;
+                list-style: none;
+                &::-webkit-details-marker {
+                    display: none;
+                }
+            }
+            &[open] {
+                display: block;
+            }
         }
 
         .comparison {
